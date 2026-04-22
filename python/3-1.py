@@ -1,0 +1,5 @@
+n=input('input word:')
+ln=len(n)
+print(f'first letter:{n[0]}')
+print(f'last letter:{n[ln-1]}')
+print(f'length:{ln}')
