@@ -139,7 +139,7 @@ void hangman(char *words[],int life){
       if(cflag==0) flag=0;
     }
     if(flag==1){
-      if(isPafe=1) printf("PERFECT!!!! (answer:%s)\n",word);
+      if(isPafe==1) printf("PERFECT!!!! (answer:%s)\n",word);
       else printf("success!! (answer:%s)\n",word);
       game=0;
     }
