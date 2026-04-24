@@ -51,6 +51,32 @@ char *Defword[]={
   "Eschaton",
   "Vengeance",
   "Reincarnation",
+  "Sodium",
+  "Ascendancy",
+  "Fatality",
+  "Halcyon",
+  "Revolution",
+  "Riptide",
+  "Convergence",
+  "Divergence",
+  "Labyrinth",
+  "Distortion",
+  "Destruction",
+  "Quetzalcoatl",
+  "Oblivion",
+  "Stratiformis",
+  "Teleport",
+  "Absolute",
+  "Collapse",
+  "Inferno",
+  "Cataclysm",
+  "Fantasia",
+  "Toxoplasmosis",
+  "Nullification",
+  "Guardian",
+  "Olympic",
+  "Apocalypse",
+  "Archangel",
   NULL
 };
 
@@ -85,7 +111,8 @@ void hangman(char *words[],int life){
 
 // main
   int game=1,flag=0,cur=0;
-  char ans;
+  char ans[256];
+  for(int i=0;i<256;i++) ans[i]=0;
   char word[256];
   int k=0,isPafe=1;
   for(k=0;words[SEL][k]!='\0';k++) word[k]=words[SEL][k];
@@ -109,39 +136,51 @@ void hangman(char *words[],int life){
     printf("\n");
 
     printf("Input alphabet(%d life remain):",life);
-    ans=0;
-    while(ans==0||ans=='\n'){
-      scanf("%c",&ans);
+    for(int i=0;ans[i]!=0;i++) ans[i]=0;
+    while(ans[0]==0||ans[0]=='\n'){
+      scanf("%s",ans);
     }
     int c;
     while((c = getchar()) != '\n');
 
-    flag=0;
-    for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans) flag=1;
-    if(flag==0){
-      input[cur]=ans;
-      cur++;
-      flag=0;
-      for(int i=0;i<wlen;i++) if(ans==word[i]||ans==word[i]-'A'+'a') flag=1;
-      if(flag==0){
-        life--;
-        isPafe=0;
+    for(int k=0;ans[k]!=0;k++){
+
+      if(ans[k]!=' '){
+        flag=0;
+        for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans[k]) flag=1;
+        if(flag==0){
+          input[cur]=ans[k];
+          cur++;
+          flag=0;
+          for(int i=0;i<wlen;i++) if(ans[k]==word[i]||ans[k]==word[i]-'A'+'a') flag=1;
+          if(flag==0){
+            life--;
+            isPafe=0;
+          }
+        }
       }
-    }
-    if(life<1){
-      game=0;
-      printf("failure (answer:%s)\n",word);
-    }
-    flag=1;
-    for(int i=0;i<wlen;i++){
-      int cflag=0;
-      for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') cflag=1;
-      if(cflag==0) flag=0;
-    }
-    if(flag==1){
-      if(isPafe==1) printf("PERFECT!!!! (answer:%s)\n",word);
-      else printf("success!! (answer:%s)\n",word);
-      game=0;
+
+      if(life<1){
+        game=0;
+        printf("failure (answer:%s)\n",word);
+        break;
+      }
+      flag=1;
+      for(int i=0;i<wlen;i++){
+        int cflag=0;
+        for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') cflag=1;
+        if(cflag==0) flag=0;
+      }
+      if(flag==1){
+        system("clear");
+        if(isPafe==1) printf("PERFECT!!!! (answer:%s)\n",word);
+        else{
+          printf("success!! (answer:%s)\n",word);
+          printf("%d life remain\n",life);
+        }
+        game=0;
+        break;
+      }
     }
 
   }
