@@ -112,9 +112,9 @@ void hangman(char *words[],int life){
     ans=0;
     while(ans==0||ans=='\n'){
       scanf("%c",&ans);
-      int c;
-      while((c = getchar()) != '\n');
     }
+    int c;
+    while((c = getchar()) != '\n');
 
     flag=0;
     for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans) flag=1;
