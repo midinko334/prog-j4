@@ -162,7 +162,7 @@ void hangman(char *words[],int life){
 
       if(life<1){
         game=0;
-        printf("failure (answer:%s)\n",word);
+        printf("Failure (answer:%s)\n",word);
         break;
       }
       flag=1;
@@ -175,7 +175,7 @@ void hangman(char *words[],int life){
         system("clear");
         if(isPafe==1) printf("PERFECT!!!! (answer:%s)\n",word);
         else{
-          printf("success!! (answer:%s)\n",word);
+          printf("Success!! (answer:%s)\n",word);
           printf("%d life remain\n",life);
         }
         game=0;
