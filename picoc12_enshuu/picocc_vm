@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# picocc_vm の使い方
+#
+# % picocc_vm source.c
+#
+# コンパイラ（pcc_vm）があるディレクトリを指定
+# 自分の pcc_vm を実行したい場合は，BINDIR を変更する
+#
+#BINDIR=/home/class/j4/gengo/picoc
+BINDIR=$HOME/bin
+
+# 出力ファイル名は，ソースの .c を .out に置き換えた名前とする
+OBJ=`basename $1 .c`.out
+
+${BINDIR}/pcc_vm < $1 > $OBJ

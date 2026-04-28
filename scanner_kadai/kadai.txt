@@ -1,0 +1,7 @@
+(0) test_scanner_kaitou を実行して，動作を調べなさい．
+　　$ ./test_scanner_kaitou
+      if (a <= 10) b = a; else b = -1; /* たとえばこんな入力 */
+(1) キーワードとして else を追加しなさい
+(2) scan_const_number を完成させなさい
+(3) コメントに対応しなさい(/ * * /) 
+
