@@ -1,0 +1,35 @@
+2020/06/01 現在の最新版
+
+picoc VM と x64 ネイティブに対応した picoc コンパイラ
+picoc VM のエラーチェックも以前より少し改善
+
+1. コンパイルとインストール（vm 編）
+
+1.1 Makefile の編集
+
+ARCH 変数でターゲットとして vm を選択する．
+
+#ARCH = x64  → x64 のネイティブコードコンパイラ
+ARCH = vm   → picoc_vm 仮想マシン用のコンパイラ
+
+1.2 コンパイル
+
+make コマンドでコンパイルする．
+
+% make
+
+1.3 インストール
+
+make install コマンドでコンパイラと vm をインストールする．
+インストール先は Makefile 内の BINDIR, LIBDIR で指定する．
+
+インストール先が $PATH に含まれていれば，picocc_vm または picocc_x86 でコンパイラが起動する．
+
+1.4 コンパイルと実行テスト
+
+test ディレクトリでサンプルプログラムをコンパイルしてみる．
+
+% cd test
+% ../pcc_vm < fact.c > fact.out
+% ../vm/picoc_vm fact.out
+

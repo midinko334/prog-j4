@@ -1,0 +1,193 @@
+rax		read() の戻り値
+rdi		write() の引数
+
+r10,11	演算に利用
+rdx     乗除算命令で使われる
+
+-- PUSHQ	n		(fp + n)番地の値をプッシュ
+
+  movq  n(%rbp), %r10
+  pushq %r10
+
+-- STOREL	n		スタックトップをポップせずに(fp + n)に格納
+
+  movq  (%rsp), %r10
+  movq  %r10, n(%rbp)
+
+-- STORET	n		スタックトップをポップせずに(sp + n) に格納
+
+  movq  %(sp), %r10
+  movq  %r10, n(%rsp)
+
+push	(未定義)		いまのところ使わないので未定義
+グローバル変数へのstore	(未定義)		いまのところ使わないので未定義
+
+-- PUSHI	d		値 d をプッシュ
+
+  pushq $n
+
+-- CALL	label	label で示される番地をコール
+
+  call  label
+
+-- RET				スタックトップの番地に復帰
+
+  ret
+
+-- ENTER			スタックフレームを生成
+
+  pushq  %rbp
+  movq   %rsp, %rbp
+
+-- LEAVE			スタックフレームを解放
+
+  leave
+
+-- MVSP	n		SP を増減
+
+  addq  $n, %rsp
+
+-- JP	label	label で示される番地に無条件分岐
+  jmp   label
+
+-- JT	label	値をポップし非ゼロなら分岐
+
+  popq  %r10
+  test	%r10, %r10
+  jnz	label
+
+-- JF	label	値をポップしゼロなら分岐
+
+  popq  %r10
+  test	%r10, %r10
+  jz	label
+
+
+-- ADD				値を二つポップして演算結果をプッシュ
+-- SUB				   push(pop2 OP pop1)
+
+  popq  %r10
+  popq  %r11
+  addq  %r10,%r11       # 減算はsubq
+  pushq %r11
+
+-- MUL
+
+  popq  %r10
+  popq  %rax
+  imulq %r10
+  pushq %rax
+
+-- DIV
+
+  popq  %r10
+  popq  %rax
+  cltd
+  idivq %r10
+  pushq %rax
+
+-- MOD
+
+  popq  %rax
+  popq  %r10
+  cltd
+  idivq %r10
+  pushq %rdx
+
+EQ				値を二つポップして比較結果をプッシュ
+NE				  push(pop2 OP pop1)
+GT				  真なら 1，偽なら 0 をプッシュ
+GE
+LT
+LE
+
+  popq  %r10
+  popq  %r11
+  movq	$1, %rax		# 条件が成り立つときの値=1を入れておく
+  cmpl  %r10,%r11
+  jz	L0				# 成り立つときは次の命令をスキップ※
+  movq  $0, %rax		# 成り立たないときの値=0を入れる
+L0:
+  pushq %rax
+
+  ※vm命令と x64 条件分岐命令の対応
+
+    EQ je
+    NE jne
+    GT jg
+    GE jge
+    LT jl
+    LE jle
+
+RD				整数を読み込み，スタックにプッシュ
+
+  call  func_read		# func_read は整数を読んで返す関数
+  pushq %rax
+
+WR				スタックから値をポップし画面に出力
+
+  movq  -24(%rbp),%rdi  # -20 は引数の変位のつもり
+  call  func_write		# func_write は整数を出力する関数
+                        # printf を直接呼ぶこともできるけど...
+
+WRLN			改行する
+
+  call  func_writeln
+  
+HALT			実行を停止する
+
+  hlt
+
+スタック
+
+	f()
+	{
+		int vf0,vf1, ... ,vfk;
+
+		...
+		r = g(式0, 式1, ... , 式n);
+		...
+	}
+
+	関数 f 開始前のFP		old-FP			← 関数 f 実行中の FP
+	関数 f の局所変数		Local vf0
+							Local vf1
+							...
+							Local vfk		← 関数 f 開始時の SP
+	関数 g の引数			Arg 式0
+							Arg 式1
+							...
+							Arg 式n-1
+							Arg 式n
+	関数 g の戻り値			return-value
+	復帰アドレス			return-address
+	関数 g 開始前のFP		old-FP			← 関数 g 実行中の FP
+	関数 g の局所変数		Local vg0
+							Local vg1
+							...
+							Local vgj		← 関数 g 開始時の SP
+							(以下，関数 g で式評価等に使用)
+
+C では，関数呼出し時の実引数の評価順序は不定である(処理系が決めてよい)．
+下向き構文解析をしながら直接コード生成するコンパイラでは，左から評価する
+方が楽である．
+
+一方，関数定義側ではスタックトップに近い方に一番左の引数がある方が，
+オフセット計算が簡単になる．また，C の可変長引数を実現するためには，
+一番左の引数の位置が分かっている必要があり，こちらの並びが適している．
+
+裏技的な方法として，左から評価しておいてスタック上のデータを積み直す命令を
+導入するというのもあるが，かなりいんちきくさい．
+
+※引数の個数が分かっている場合の解決法
+
+(1) SP を引数に必要な領域だけ成長させる
+(2) 引数を左から順に計算し，しかるべきアドレスにストア
+(3) 関数を呼ぶ
+
+※戻り値の位置
+
+関数 g への引数よりも上に戻り値領域をとれば，g から帰ってきたあと，
+SP を動かす(引数分を足す)だけで，戻り値がスタックトップに残る．
+可変長引数を許さないなら，この方が少し効率的
+
