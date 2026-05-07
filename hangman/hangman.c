@@ -4,7 +4,7 @@
 #include <time.h>
 #include <string.h>
 
-#define LIFE 6
+#define LIFE 7
 
 char *Defword[]={
   "Singularity",
@@ -245,7 +245,7 @@ int main(){
         fseek(fp, 0L, SEEK_SET);
 
         while (fgets(buf, sizeof(buf), fp) != NULL && curgene < 255) {
-          // 改行文字を削除する処理（末尾が \n なら \0 に置き換える）
+          // 改行文字を削除する処理（末尾が \n か空白なら \0 に置き換える）
           buf[strcspn(buf, "\r\n")] = '\0';
 
           // 空行でなければ配列に格納
@@ -258,9 +258,43 @@ int main(){
             }
           }
         }
-        fclose(fp);
         gene[curgene] = NULL;
-        hangman(gene,LIFE);
+
+        //番号や意味の解説を無視
+        char *word[256];
+        char temp[256];
+
+        for(curgene=0;gene[curgene]!=NULL;curgene++){
+          for(int i=0;i<256;i++) temp[i]='\0';
+          int j=0;
+          int alpflag=0;
+          for(int i=0;gene[curgene][i]!='\0';i++){
+            if((gene[curgene][i]>='a'&&gene[curgene][i]<='z')||(gene[curgene][i]>='A'&&gene[curgene][i]<='Z')){
+              alpflag=1;
+//              printf("alpflag:on/%c\n",gene[curgene][i]);
+            }
+            if(gene[curgene][i]==' '){
+//              printf("Blank is detected\n");
+              gene[curgene][i]='\0';
+              j=0;
+              if(alpflag) break;
+              for(int i=0;i<256;i++) temp[i]='\0';
+            }
+            else{
+              temp[j]=gene[curgene][i];
+              j++;
+            }
+          }
+          word[curgene] = (char *)malloc(strlen(temp)+1);
+          for(int i=0;temp[i]!='\0';i++){
+            word[curgene][i]=temp[i];
+//            printf("Input:%c\n",temp[i]);
+          }
+        }
+        fclose(fp);
+        word[curgene] = NULL;
+//        sleep(3);
+        hangman(word,LIFE);
       }
     }
   }

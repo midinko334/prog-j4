@@ -1,4 +1,4 @@
 Apple
-Banana
-Carrot
-Donut
+1 Banana
+2 Carrot 人参
+3 Donut do-nattu
