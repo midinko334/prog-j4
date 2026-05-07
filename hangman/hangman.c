@@ -110,7 +110,7 @@ void hangman(char *words[],int life){
 // */
 
 // main
-  int game=1,flag=0,cur=0;
+  int game=1,flag=0,endflag=0,sttflag,cur=0;
   char ans[256];
   for(int i=0;i<256;i++) ans[i]=0;
   char word[256];
@@ -124,9 +124,9 @@ void hangman(char *words[],int life){
   while(game){
     system("clear");
     for(int i=0;i<wlen;i++){
-      flag=0;
-      for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') flag=1;
-      if(flag==1) printf("%c",word[i]);
+      sttflag=0;
+      for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') sttflag=1;
+      if(sttflag==1) printf("%c",word[i]);
       else printf("-");
     }
     printf("\n\n");
@@ -134,6 +134,13 @@ void hangman(char *words[],int life){
     printf("Using letter:");
     for(int j=0;input[j]!='\0'&&j<32;j++) printf("%c,",input[j]);
     printf("\n");
+
+    if(input[0]=='\0') printf("\n");
+    else if(ans[1]!='\0') printf("The answer is not \"%s\"\n",ans);
+    else if(flag==1) printf("%c is included\n",ans[0]);
+    else if(flag==2) printf("%c is already used\n",ans[0]);
+    else if(flag==0) printf("%c is not included\n",ans[0]);
+    else printf("Error!!");
 
     printf("Input alphabet(%d life remain):",life);
     for(int i=0;ans[i]!=0;i++) ans[i]=0;
@@ -147,7 +154,7 @@ void hangman(char *words[],int life){
 
       if(ans[k]!=' '){
         flag=0;
-        for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans[k]) flag=1;
+        for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans[k]) flag=2;
         if(flag==0){
           input[cur]=ans[k];
           cur++;
@@ -161,17 +168,18 @@ void hangman(char *words[],int life){
       }
 
       if(life<1){
+        system("clear");
         game=0;
         printf("Failure (answer:%s)\n",word);
         break;
       }
-      flag=1;
+      endflag=1;
       for(int i=0;i<wlen;i++){
         int cflag=0;
         for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') cflag=1;
-        if(cflag==0) flag=0;
+        if(cflag==0) endflag=0;
       }
-      if(flag==1){
+      if(endflag==1){
         system("clear");
         if(isPafe==1) printf("PERFECT!!!! (answer:%s)\n",word);
         else{
