@@ -4,7 +4,6 @@
 #include <time.h>
 #include <string.h>
 
-srand((unsigned int)time(NULL));
 #define LIFE 7
 
 char *Defword[]={
@@ -206,6 +205,7 @@ void hangman(char *words[],int life){
 
 int main(){
 
+  srand((unsigned int)time(NULL));
   int mode,modechanged=0;
   char enterkesi;
 
