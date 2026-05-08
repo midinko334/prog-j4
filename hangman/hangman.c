@@ -4,6 +4,7 @@
 #include <time.h>
 #include <string.h>
 
+srand((unsigned int)time(NULL));
 #define LIFE 7
 
 char *Defword[]={
@@ -97,8 +98,7 @@ int curgene = 0;
 // hangman-setup
 void hangman(char *words[],int life){
 
-  srand((unsigned int)time(NULL));
-  int length=0;
+  int length=0,inputlife=life;
   for(;words[length]!=NULL;length++);
   int SEL=rand()%length;
 
@@ -192,8 +192,15 @@ void hangman(char *words[],int life){
     }
 
   }
+  printf("retry?(y/N):");
+  for(int i=0;ans[i]!=0;i++) ans[i]=0;
+  while(ans[0]==0||ans[0]=='\n'){
+    scanf("%s",ans);
+  }
+  int c;
+  while((c = getchar()) != '\n');
 
-
+  if(ans[0]=='y'||ans[0]=='Y') hangman(words,inputlife);
 }
 
 
