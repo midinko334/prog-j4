@@ -1,4 +1,4 @@
-## x86-64 Linux アセンブリ (AT&T 構文 / GNU as)
+## global variable
 
     .equ BOARD_SIZE, 8
     .equ MINE_COUNT, 10
@@ -10,11 +10,11 @@
     .equ STDOUT,     1
     .equ STDIN,      0
 
-## .data  ─ 文字列リテラル
+## .data  ─ string literals
     .section .data
 msg_title:   .string "=== M Sweeper ===\n"
 msg_header:  .string "  0 1 2 3 4 5 6 7\n"
-msg_prompt:  .string "Open (row col) > "
+msg_input:   .string "Open (row col) > "
 msg_gameover:.string "*** GAME OVER ***\n"
 msg_clear:   .string "*** GAME CLEAR ***\n"
 msg_already: .string "Already opened. Try again.\n"
@@ -24,19 +24,19 @@ msg_sep:     .string "| "
 msg_space:   .string " "
 msg_dot:     .string "."
 
-## .bss  ─ 未初期化データ
+## .bss  ─ uninit data
     .section .bss
-board:      .skip 64       ## 1=地雷, 0=安全
-visible:    .skip 64       ## 1=公開済, 0=非公開
-input_buf:  .skip 16       ## read() 用バッファ
-char_buf:   .skip 4        ## 1 文字出力用バッファ
+board:      .skip 64       ## 1=unsafe, 0=safe
+visible:    .skip 64       ## 1=opened, 0=unopened
+input_buf:  .skip 16       ## buffer for read()
+char_buf:   .skip 4        ## buffer for char
 
-## .text  ─ コード
+## .text  ─ code
     .section .text
     .global _start
 
 ## strlen: rsi → rax
-## rsi: 文字列ポインタ  →  rax: 文字列長
+## rsi(string pointer) to rax(string length)
 strlen:
     xorq %rax, %rax
 .strlen_loop:
@@ -47,19 +47,17 @@ strlen:
 .strlen_done:
     ret
 
-## print_str: rsi に文字列ポインタをセットして呼ぶ
+## print_str: call with string pointer set in "rsi"
 ## clobbers: rax, rdi, rdx
 print_str:
-    pushq %rcx
     call  strlen           ## rax = len
     movq  %rax, %rdx
     movq  $SYS_WRITE, %rax
     movq  $STDOUT, %rdi
     syscall
-    popq  %rcx
     ret
 
-## print_char: al に文字をセットして呼ぶ
+## print_char: call with character set in "al"
 print_char:
     movb  %al, char_buf(%rip)
     movq  $SYS_WRITE, %rax
@@ -69,13 +67,13 @@ print_char:
     syscall
     ret
 
-## print_digit: rax に数字 (0-9) をセットして呼ぶ
+## print_digit: call with 0~9 set in "rax"
 print_digit:
     addb  $'0', %al
     call  print_char
     ret
 
-## init_board: board と visible を クリア
+## init_board: clear board and visible
 init_board:
     pushq %rdi
     pushq %rcx
@@ -95,29 +93,24 @@ init_board:
     popq  %rdi
     ret
 
-## place_mines: MINE_COUNT 個の地雷をランダム配置
-## 疑似乱数: rdtsc の下位ビット利用
+## place_mines: place MINE_COUNT mines randomly
+## pseudo random number: use lower bits of rdtsc
 place_mines:
     pushq %rbx
     pushq %r12
     pushq %r13
-    xorq  %r12, %r12           ## placed = 0
+    xorq  %r12, %r12
 .pm_next:
     cmpq  $MINE_COUNT, %r12
     jge   .pm_done
     rdtsc
-    ## eax mod 64
-    xorl  %edx, %edx
-    movl  $64, %ecx
-    divl  %ecx                  ## edx = eax % 64
-    movzbl %dl, %ebx
-    leaq board(%rip),%r9
+    andl  $63, %eax
+    movl  %eax, %ebx
+    leaq  board(%rip), %r9
     cmpb  $1, (%r9,%rbx)
-    je    .pm_next              ## 既に地雷 → retry
-    leaq board(%rip),%r9
+    je    .pm_next
     movb  $1, (%r9,%rbx)
     incq  %r12
-    ## 時間を少し消費して乱数をずらす
     movq  $255, %r13
 .pm_spin:
     decq  %r13
@@ -129,7 +122,7 @@ place_mines:
     popq  %rbx
     ret
 
-## count_mines: rdi=row, rsi=col → rax (周囲の地雷数)
+## count_mines: number of surrounding mines
 count_mines:
     pushq %rbx
     pushq %r12
@@ -147,7 +140,6 @@ count_mines:
 .cm_dc:
     cmpq  $1, %rbx
     jg    .cm_dr_next
-    ## (dr,dc)==(0,0) はスキップ
     testq %r15, %r15
     jnz   .cm_not_center
     testq %rbx, %rbx
@@ -186,14 +178,15 @@ count_mines:
     ret
 
 ## open_cell: rdi=row, rsi=col → rax
-## 0: 安全  1: 地雷  2: 範囲外 or 開済み
+## 0: safe  1: unsafe  2: except
 open_cell:
     pushq %rbx
     pushq %r12
     pushq %r13
     movq  %rdi, %r12
     movq  %rsi, %r13
-    ## 範囲チェック
+
+    ## bounds check
     cmpq  $0, %r12
     jl    .oc_already
     cmpq  $BOARD_SIZE, %r12
@@ -206,15 +199,18 @@ open_cell:
     movq  %r12, %rbx
     imulq $BOARD_SIZE, %rbx
     addq  %r13, %rbx
-    ## 開済みチェック
+
+    ## opened check
     leaq visible(%rip),%r10
     cmpb  $1, (%r10,%rbx)
     je    .oc_already
-    ## 地雷チェック
+
+    ## mine check
     leaq board(%rip),%r9
     cmpb  $1, (%r9,%rbx)
     je    .oc_mine
-    ## 安全 → 公開
+
+    ## safe -> reveal
     leaq visible(%rip),%r10
     movb  $1, (%r10,%rbx)
     xorq  %rax, %rax
@@ -230,7 +226,7 @@ open_cell:
     popq  %rbx
     ret
 
-## check_clear → rax  (1: クリア  0: 未クリア)
+## check_clear → rax  (1: clear  0: not clear)
 check_clear:
     pushq %rbx
     xorq  %rbx, %rbx
@@ -239,10 +235,10 @@ check_clear:
     jge   .cc_yes
     leaq board(%rip),%r9
     cmpb  $1, (%r9,%rbx)
-    je    .cc_skip           ## 地雷マスはスキップ
+    je    .cc_skip           ## not include mine
     leaq visible(%rip),%r10
     cmpb  $1, (%r10,%rbx)
-    jne   .cc_no             ## 安全だが未開放
+    jne   .cc_no             ## not opened safe
 .cc_skip:
     incq  %rbx
     jmp   .cc_loop
@@ -255,21 +251,18 @@ check_clear:
     popq  %rbx
     ret
 
-## print_row_num: rax に行番号をセットして呼ぶ
+## print_row_num: call with row number set in rax
 print_row_num:
-    call  print_digit          ## rax に行番号
+    call  print_digit
     leaq  msg_sep(%rip), %rsi
     call  print_str
     ret
 
-## print_cell: r12=row, r13=col, rbx=index でセル 1 つを表示
+## print_cell: r12=row, r13=col, rbx=index
 print_cell:
-    pushq %rdi
-    pushq %rsi
     leaq visible(%rip),%r10
     cmpb  $1, (%r10,%rbx)
     jne   .pc_hidden
-    ## 開いているセル: 周囲地雷数を表示
     movq  %r12, %rdi
     movq  %r13, %rsi
     call  count_mines
@@ -279,11 +272,9 @@ print_cell:
     leaq  msg_dot(%rip), %rsi
     call  print_str
 .pc_done:
-    popq  %rsi
-    popq  %rdi
     ret
 
-## print_board: ボード全体を表示
+## print_board: display the entire board
 print_board:
     pushq %rbx
     pushq %r12
@@ -304,7 +295,7 @@ print_board:
     imulq $BOARD_SIZE, %rbx
     addq  %r13, %rbx
     call  print_cell
-    ## 最後の列以外はスペース
+    ## space except for the last column
     cmpq  $7, %r13
     je    .pb_no_sp
     leaq  msg_space(%rip), %rsi
@@ -324,10 +315,10 @@ print_board:
     ret
 
 ## read_input → rax(row), rbx(col)
-## 失敗時 rax = -1
+## if failed rax = -1
 read_input:
     pushq %rcx
-    ## stdin から読み込み
+    ## read from stdin
     movq  $SYS_READ, %rax
     movq  $STDIN, %rdi
     leaq  input_buf(%rip), %rsi
@@ -335,7 +326,7 @@ read_input:
     syscall
     cmpq  $3, %rax
     jl    .ri_fail
-    ## 1 文字目 = row
+    ## 1st char = row
     movzbl input_buf(%rip), %ecx
     subl  $'0', %ecx
     cmpq  $0, %rcx
@@ -343,7 +334,7 @@ read_input:
     cmpq  $7, %rcx
     jg    .ri_fail
     movq  %rcx, %rax
-    ## 2 文字目 (スペース可) をスキップしながら col を探す
+    ## skip 2nd char and looking for col
     leaq  input_buf+1(%rip), %rcx
 .ri_skip:
     cmpb  $' ', (%rcx)
@@ -365,14 +356,14 @@ read_input:
     popq  %rcx
     ret
 
-## game_loop: メインゲームループ
+## game_loop: main loop
 game_loop:
     pushq %rbx
     pushq %r12
     pushq %r13
 .gl_loop:
     call  print_board
-    leaq  msg_prompt(%rip), %rsi
+    leaq  msg_input(%rip), %rsi
     call  print_str
     call  read_input
     cmpq  $-1, %rax
@@ -413,7 +404,7 @@ game_loop:
     popq  %rbx
     ret
 
-## _start: エントリポイント
+## _start: entry
 _start:
     leaq  msg_title(%rip), %rsi
     call  print_str
