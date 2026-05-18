@@ -3,98 +3,43 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
+#include "hangman.h"
+#include <termio.h>
 
 #define LIFE 7
-
-char *Defword[]={
-  "Singularity",
-  "Immolation",
-  "Transfiguration",
-  "Resonance",
-  "Monster",
-  "Toxoplasmosis",
-  "Hippopotomonstrosesquipedaliophobia",
-  "Information",
-  "Relationship",
-  "Communication",
-  "Environment",
-  "Organization",
-  "Understanding",
-  "Performance",
-  "Development",
-  "Infrastructure",
-  "Architecture",
-  "Division",
-  "Collaboration",
-  "Satisfaction",
-  "Professional",
-  "Alternative",
-  "Significant",
-  "Implementation",
-  "Supercalifragilistic",
-  "Recommendation",
-  "Transformation",
-  "Responsibility",
-  "Identification",
-  "Characterization",
-  "Sustainability",
-  "Multiplication",
-  "Experimentation",
-  "Sophistication",
-  "Countermeasures",
-  "Intercontinental",
-  "Telecommunication",
-  "Incomprehensible",
-  "Anhedonia",
-  "Annihilation",
-  "Sabaton",
-  "Restitution",
-  "Eschaton",
-  "Vengeance",
-  "Reincarnation",
-  "Sodium",
-  "Ascendancy",
-  "Fatality",
-  "Halcyon",
-  "Revolution",
-  "Riptide",
-  "Convergence",
-  "Divergence",
-  "Labyrinth",
-  "Distortion",
-  "Destruction",
-  "Quetzalcoatl",
-  "Oblivion",
-  "Stratiformis",
-  "Teleport",
-  "Absolute",
-  "Collapse",
-  "Inferno",
-  "Cataclysm",
-  "Fantasia",
-  "Nullification",
-  "Guardian",
-  "Olympic",
-  "Apocalypse",
-  "Archangel",
-  NULL
-};
-
-char *Easword[]={
-  "Apple",
-  "Banana",
-  "Carrot",
-  "Donut",
-  "Egg",
-  "Fish",
-  NULL
-};
 
 char *gene[256];
 int curgene = 0;
 
+char getChar(void){
+	struct termio old_term, new_term;
 
-// hangman-setup
+	char	c;
+
+	/* 現在の設定を得る */
+	ioctl(0, TCGETA, &old_term);
+
+	/* 設定のコピーをつくる */
+	new_term = old_term;
+
+	/* 入力文字のエコーを抑止する場合 */
+	new_term.c_lflag &= ~(ICANON | ECHO);
+
+	/* エコーは止めない場合 */
+	//new_term.c_lflag &= ~(ICANON);
+
+	/* 新しい設定を反映する */
+	ioctl(0, TCSETAW, &new_term);
+
+	/* 1 文字入力 */
+	c = getchar();
+
+	/* 古い設定に戻す */
+	ioctl(0, TCSETAW, &old_term);
+
+	return (c);
+}
+
 void hangman(char *words[],int life){
 
   int length=0,inputlife=life;
@@ -110,8 +55,7 @@ void hangman(char *words[],int life){
 
 // main
   int game=1,flag=0,endflag=0,sttflag,cur=0;
-  char ans[256];
-  for(int i=0;i<256;i++) ans[i]=0;
+  char ans=0;
   char word[256];
   int k=0,isPafe=1;
   for(k=0;words[SEL][k]!='\0';k++) word[k]=words[SEL][k];
@@ -135,71 +79,57 @@ void hangman(char *words[],int life){
     printf("\n");
 
     if(input[0]=='\0') printf("\n");
-    else if(ans[1]!='\0') printf("The answer is not \"%s\"\n",ans);
-    else if(flag==1) printf("%c is included\n",ans[0]);
-    else if(flag==2) printf("%c is already used\n",ans[0]);
-    else if(flag==0) printf("%c is not included\n",ans[0]);
+    else if(flag==1) printf("%c is included\n",ans);
+    else if(flag==2) printf("%c is already used\n",ans);
+    else if(flag==0) printf("%c is not included\n",ans);
     else printf("Error!!");
 
     printf("Input alphabet(%d life remain):",life);
-    for(int i=0;ans[i]!=0;i++) ans[i]=0;
-    while(ans[0]==0||ans[0]=='\n'){
-      scanf("%s",ans);
-    }
-    int c;
-    while((c = getchar()) != '\n');
+    ans=getChar();
 
-    for(int k=0;ans[k]!=0;k++){
-
-      if(ans[k]!=' '){
+    if(ans!=' '){
+      flag=0;
+      for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans) flag=2;
+      if(flag==0){
+        input[cur]=ans;
+        cur++;
         flag=0;
-        for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans[k]) flag=2;
+        for(int i=0;i<wlen;i++) if(ans==word[i]||ans==word[i]-'A'+'a') flag=1;
         if(flag==0){
-          input[cur]=ans[k];
-          cur++;
-          flag=0;
-          for(int i=0;i<wlen;i++) if(ans[k]==word[i]||ans[k]==word[i]-'A'+'a') flag=1;
-          if(flag==0){
-            life--;
-            isPafe=0;
-          }
+          life--;
+          isPafe=0;
         }
-      }
-
-      if(life<1){
-        system("clear");
-        game=0;
-        printf("Failure (answer:%s)\n",word);
-        break;
-      }
-      endflag=1;
-      for(int i=0;i<wlen;i++){
-        int cflag=0;
-        for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') cflag=1;
-        if(cflag==0) endflag=0;
-      }
-      if(endflag==1){
-        system("clear");
-        if(isPafe==1) printf("PERFECT!!!! (answer:%s)\n",word);
-        else{
-          printf("Success!! (answer:%s)\n",word);
-          printf("%d life remain\n",life);
-        }
-        game=0;
-        break;
       }
     }
 
-  }
-  printf("retry?(y/N):");
-  for(int i=0;ans[i]!=0;i++) ans[i]=0;
-  while(ans[0]==0||ans[0]=='\n'){
-    scanf("%s",ans);
-  }
-  int c;
-  while((c = getchar()) != '\n');
+    if(life<1){
+      system("clear");
+      game=0;
+      printf("Failure (answer:%s)\n",word);
+      break;
+    }
+    endflag=1;
+    for(int i=0;i<wlen;i++){
+      int cflag=0;
+      for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') cflag=1;
+      if(cflag==0) endflag=0;
+    }
+    if(endflag==1){
+      system("clear");
+      if(isPafe==1) printf("PERFECT!!!! (answer:%s)\n",word);
+      else{
+        printf("Success!! (answer:%s)\n",word);
+        printf("%d life remain\n",life);
+      }
+      game=0;
+      break;
+    }
 
-  if(ans[0]=='y'||ans[0]=='Y') hangman(words,inputlife);
+  }
+  printf("retry?(y/N):\n");
+  ans=getChar();
+
+  if(ans=='y'||ans=='Y') hangman(words,inputlife);
 }
 
 
@@ -329,6 +259,8 @@ int main(){
   }
   else if(mode!=1) printf("Invalid\n");
 
+
+  printf("bye\n");
 
   for(int freei=0;freei<curgene;freei++) free(gene[freei]);
 }
