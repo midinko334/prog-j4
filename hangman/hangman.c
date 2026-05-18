@@ -170,7 +170,7 @@ int main(){
       else modechanged=1;
     }
     else{
-      // サイズ確認
+      // size check
       fseek(fp, 0L, SEEK_END);
       fsize = ftell(fp);
       if(fsize==0){
@@ -190,22 +190,21 @@ int main(){
         fseek(fp, 0L, SEEK_SET);
 
         while (fgets(buf, sizeof(buf), fp) != NULL && curgene < 255) {
-          // 改行文字を削除する処理（末尾が \n か空白なら \0 に置き換える）
+          // delete indent
           buf[strcspn(buf, "\r\n")] = '\0';
 
-          // 空行でなければ配列に格納
+          // insert if not blank
           if (strlen(buf) > 0) {
-            // その行の長さ分だけメモリを確保してコピー
             gene[curgene] = (char *)malloc(strlen(buf) + 1);
             if (gene[curgene] != NULL) {
               strcpy(gene[curgene], buf);
-              curgene++; // 次の配列インデックスへ
+              curgene++;
             }
           }
         }
         gene[curgene] = NULL;
 
-        //番号や意味の解説を無視
+        // delete if not include word
         char *word[256];
         char temp[256];
 
