@@ -22,8 +22,8 @@ msg_dot:     .string "."
 
 ## .bss  ─ uninit data
     .section .bss
-board:       .skip 100      ## 1=unsafe, 0=safe
-visible:     .skip 100      ## 1=opened, 0=unopened
+board:       .skip 1500     ## 1=unsafe, 0=safe
+visible:     .skip 1500     ## 1=opened, 0=unopened
 input_buf:   .skip 16       ## buffer for read()
 num_buf:     .skip 16       ## buffer for read()
 char_buf:    .skip 4        ## buffer for char
@@ -109,7 +109,6 @@ print_char:
     syscall
     ret
 
-## print_digit: call with 0~9 set in "rax"
 ## print_number
 ## input: rax
 print_number:
@@ -121,7 +120,7 @@ print_number:
     leaq num_buf(%rip), %rsi
     addq $15, %rsi
     movb $0, (%rsi)
-    movq $10, %rbx
+    movq $36, %rbx
 
     testq %rax, %rax
     jnz .pn_loop
@@ -134,8 +133,16 @@ print_number:
     xorq %rdx, %rdx
     divq %rbx
 
+    cmpb $9, %dl
+    jle .pn_digit
+
+    addb $('A' - 10), %dl
+    jmp .pn_store
+
+.pn_digit:
     addb $'0', %dl
 
+.pn_store:
     decq %rsi
     movb %dl, (%rsi)
 
@@ -424,88 +431,93 @@ print_board:
     ret
 
 ## read_input → rax(row), rbx(col)
-## if failed rax = -1
-read_int:
-    xorq %rax, %rax          ## result = 0
-
-## skip space
-.ri_skip_space:
-    movzbq (%rsi), %rcx
-    cmpb $' ', %cl
-    jne .ri_digit_check
-    incq %rsi
-    jmp .ri_skip_space
-
-.ri_digit_check:
-    cmpb $'0', %cl
-    jl .ri_fail
-    cmpb $'9', %cl
-    jg .ri_fail
-
-.ri_loop:
-    movzbq (%rsi), %rcx
-    cmpb $'0', %cl
-    jl .ri_done
-    cmpb $'9', %cl
-    jg .ri_done
-    imulq $10, %rax
-    subb $'0', %cl
-    addq %rcx, %rax
-    incq %rsi
-    jmp .ri_loop
-
-.ri_done:
-    ret
-
-.ri_fail:
-    movq $-1, %rax
-    ret
+## rax=row rbx=col
+## failed -> rax=-1
 
 read_input:
     pushq %rcx
-    pushq %r8
-    ## read from stdin
+
+    ## read
     movq  $SYS_READ, %rax
     movq  $STDIN, %rdi
     leaq  input_buf(%rip), %rsi
     movq  $15, %rdx
     syscall
+
     cmpq  $3, %rax
-    jl    .rip_fail
+    jl    .ri_fail
 
-    ## parse row
-    leaq input_buf(%rip), %rsi
-    call read_int
-    cmpq $-1, %rax
-    je .rip_fail
-    movq %rax, %r8       ## save row
-    ## parse col
-    call read_int
-    cmpq $-1, %rax
-    je .rip_fail
-    movq %rax, %rbx      ## col
-    ## restore row
-    movq %r8, %rax
+    ## row
+    movzbq input_buf(%rip), %rax
+    call   char_to_base36
+    cmpq   $-1, %rax
+    je     .ri_fail
 
-    ## range check row
-    movq board_size(%rip), %rcx
-    cmpq $0, %rax
-    jl .rip_fail
-    cmpq %rcx, %rax
-    jge .rip_fail
-    ## range check col
-    cmpq $0, %rbx
-    jl .rip_fail
-    cmpq %rcx, %rbx
-    jge .rip_fail
-    jmp .rip_done
+    movq   %rax, %rcx
 
-.rip_fail:
+    ## col
+    movzbq input_buf+1(%rip), %rax
+    call   char_to_base36
+    cmpq   $-1, %rax
+    je     .ri_fail
+
+    movq  %rax, %rbx
+    movq  %rcx, %rax
+
+    ## range check
+    movq  board_size(%rip), %rcx
+
+    cmpq  %rcx, %rax
+    jge   .ri_fail
+
+    cmpq  %rcx, %rbx
+    jge   .ri_fail
+
+    popq  %rcx
+    ret
+
+.ri_fail:
     movq $-1, %rax
-
-.rip_done:
-    popq %r8
     popq %rcx
+    ret
+
+## input: al
+## output: rax
+## failed: -1
+
+char_to_base36:
+    ## '0'-'9'
+    cmpb $'0', %al
+    jl .ctb_upper
+    cmpb $'9', %al
+    jg .ctb_upper
+
+    movzbq %al, %rax
+    subq $'0', %rax
+    ret
+
+.ctb_upper:
+    cmpb $'A', %al
+    jl .ctb_lower
+    cmpb $'Z', %al
+    jg .ctb_lower
+
+    movzbq %al, %rax
+    subq $('A' - 10), %rax
+    ret
+
+.ctb_lower:
+    cmpb $'a', %al
+    jl .ctb_fail
+    cmpb $'z', %al
+    jg .ctb_fail
+
+    movzbq %al, %rax
+    subq $('a' - 10), %rax
+    ret
+
+.ctb_fail:
+    movq $-1, %rax
     ret
 
 ## read_number -> rax
@@ -624,7 +636,7 @@ setup_game:
     cmpq  $2, %rax
     jl    .sg_invalid_board
 
-    cmpq  $9, %rax
+    cmpq  $36, %rax
     jg    .sg_invalid_board
 
     ## save board_size
