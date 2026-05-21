@@ -87,7 +87,7 @@ void hangman(char *words[],int life){
     printf("Input alphabet(%d life remain):",life);
     ans=getChar();
 
-    if(ans!=' '){
+    if(ans!=' '&&ans!='\n'){
       flag=0;
       for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans) flag=2;
       if(flag==0){
