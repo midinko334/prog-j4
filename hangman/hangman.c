@@ -5,6 +5,7 @@
 #include <string.h>
 #include "hangman.h"
 #include <termio.h>
+#define CHARTYPES 64
 
 #define LIFE 7
 
@@ -54,31 +55,32 @@ void hangman(char *words[],int life){
 // */
 
 // main
-  int game=1,flag=0,endflag=0,sttflag,cur=0;
+  int game=1,flag=0,endflag=0,sttflag,cur=1;
   char ans=0;
   char word[256];
   int k=0,isPafe=1;
   for(k=0;words[SEL][k]!='\0';k++) word[k]=words[SEL][k];
   word[k]='\0';
-  char input[32];
-  for(int j=0;j<32;j++) input[j]='\0';
+  char input[CHARTYPES];
+  for(int j=0;j<CHARTYPES;j++) input[j]='\0';
   int wlen=strlen(words[SEL]);
+  input[0]=' ';
 
   while(game){
     system("clear");
     for(int i=0;i<wlen;i++){
       sttflag=0;
-      for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') sttflag=1;
+      for(int j=0;input[j]!='\0'&&j<CHARTYPES;j++) if(input[j]==word[i]||( input[j]==word[i]-'A'+'a' && (input[j]<='z'&&input[j]>='a') )) sttflag=1;
       if(sttflag==1) printf("%c",word[i]);
       else printf("-");
     }
     printf("\n\n");
 
     printf("Using letter:");
-    for(int j=0;input[j]!='\0'&&j<32;j++) printf("%c,",input[j]);
+    for(int j=1;input[j]!='\0'&&j<CHARTYPES;j++) printf("%c,",input[j]);
     printf("\n");
 
-    if(input[0]=='\0') printf("\n");
+    if(input[1]=='\0') printf("\n");
     else if(flag==1) printf("%c is included\n",ans);
     else if(flag==2) printf("%c is already used\n",ans);
     else if(flag==0) printf("%c is not included\n",ans);
@@ -89,7 +91,7 @@ void hangman(char *words[],int life){
 
     if(ans!=' '&&ans!='\n'){
       flag=0;
-      for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==ans) flag=2;
+      for(int j=0;input[j]!='\0'&&j<CHARTYPES;j++) if(input[j]==ans) flag=2;
       if(flag==0){
         input[cur]=ans;
         cur++;
@@ -111,7 +113,7 @@ void hangman(char *words[],int life){
     endflag=1;
     for(int i=0;i<wlen;i++){
       int cflag=0;
-      for(int j=0;input[j]!='\0'&&j<32;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') cflag=1;
+      for(int j=0;input[j]!='\0'&&j<CHARTYPES;j++) if(input[j]==word[i]||input[j]==word[i]-'A'+'a') cflag=1;
       if(cflag==0) endflag=0;
     }
     if(endflag==1){
@@ -127,9 +129,15 @@ void hangman(char *words[],int life){
 
   }
   printf("retry?(y/N):\n");
-  ans=getChar();
+  ans=getchar();
 
-  if(ans=='y'||ans=='Y') hangman(words,inputlife);
+  if(ans=='y'||ans=='Y'){
+    char c;
+    while((c = getchar()) != '\n');
+    hangman(words,inputlife);
+  }
+  else exit;
+
 }
 
 
@@ -204,7 +212,7 @@ int main(){
         }
         gene[curgene] = NULL;
 
-        // delete if not include word
+        // delete if not include word but if covered with "", include it
         char *word[256];
         char temp[256];
 
@@ -212,12 +220,18 @@ int main(){
           for(int i=0;i<256;i++) temp[i]='\0';
           int j=0;
           int alpflag=0;
+          int tyomeflag=0;
           for(int i=0;gene[curgene][i]!='\0';i++){
-            if((gene[curgene][i]>='a'&&gene[curgene][i]<='z')||(gene[curgene][i]>='A'&&gene[curgene][i]<='Z')){
+            if(gene[curgene][i]=='"'){
+              if(tyomeflag) break;
+              tyomeflag=1;
+              i++;
+            }
+            if( ((gene[curgene][i]>='a'&&gene[curgene][i]<='z')||(gene[curgene][i]>='A'&&gene[curgene][i]<='Z')) && tyomeflag==0){
               alpflag=1;
 //              printf("alpflag:on/%c\n",gene[curgene][i]);
             }
-            if(gene[curgene][i]==' '){
+            if(gene[curgene][i]==' ' && tyomeflag==0){
 //              printf("Blank is detected\n");
               gene[curgene][i]='\0';
               j=0;
@@ -235,6 +249,8 @@ int main(){
 //            printf("Input:%c\n",temp[i]);
           }
         }
+
+
         fclose(fp);
         word[curgene] = NULL;
 //        sleep(3);
