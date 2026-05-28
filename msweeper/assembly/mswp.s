@@ -7,16 +7,15 @@
 
 ## .data  ─ string literals
     .section .data
-msg_board:   .string "Board size (Max 36 Min 2)> "
-msg_mines:   .string "Mine count > "
+msg_board:   .string "Board size (Max 36 Min 2): "
+msg_mines:   .string "Mine count : "
 msg_title:   .string "=== M Sweeper ===\n"
-msg_input:   .string "Open (row col) > "
+msg_input:   .string "Open (x y) : "
 msg_gameover:.string "*** GAME OVER ***\n"
 msg_clear:   .string "*** GAME CLEAR ***\n"
 msg_already: .string "Already opened. Try again.\n"
 msg_invalid: .string "Invalid input. Try again.\n"
 msg_newline: .string "\n"
-msg_sep:     .string "| "
 msg_space:   .string " "
 msg_dot:     .string "."
 
@@ -67,8 +66,6 @@ print_header:
     call  print_char
     movb  $' ', %al
     call  print_char
-    movb  $' ', %al
-    call  print_char
 
     xorq  %r12, %r12          ## col = 0
 
@@ -82,7 +79,7 @@ print_header:
     movq  %r12, %rax
     call  print_number
 
-    ## 最後以外は space
+    ## space if not end
     movq  board_size(%rip), %rbx
     decq  %rbx
     cmpq  %rbx, %r12
@@ -528,7 +525,7 @@ check_clear:
 .cc_loop:
     cmpq  %r12, %rbx
     jge   .cc_yes
-    leaq board(%rip),%r9
+    leaq  board(%rip),%r9
     cmpb  $1, (%r9,%rbx)
     je    .cc_skip           ## not include mine
     leaq visible(%rip),%r10
@@ -550,13 +547,13 @@ check_clear:
 ## print_row_num: call with row number set in rax
 print_row_num:
     call  print_number
-    leaq  msg_sep(%rip), %rsi
+    leaq  msg_space(%rip), %rsi
     call  print_str
     ret
 
 ## print_cell: r12=row, r13=col, rbx=index
 print_cell:
-    leaq visible(%rip),%r10
+    leaq  visible(%rip),%r10
     cmpb  $1, (%r10,%rbx)
     jne   .pc_hidden
     movq  %r12, %rdi
@@ -643,16 +640,13 @@ read_input:
     cmpq   $-1, %rax
     je     .ri_fail
 
-    movq   %rax, %rcx
+    movq   %rax, %rbx
 
     ## col
     movzbq input_buf+1(%rip), %rax
     call   char_to_base36
     cmpq   $-1, %rax
     je     .ri_fail
-
-    movq  %rax, %rbx
-    movq  %rcx, %rax
 
     ## range check
     movq  board_size(%rip), %rcx
@@ -974,3 +968,4 @@ _start:
     movq  $SYS_EXIT, %rax
     xorq  %rdi, %rdi
     syscall
+

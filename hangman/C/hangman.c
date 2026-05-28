@@ -4,10 +4,19 @@
 #include <time.h>
 #include <string.h>
 #include "hangman.h"
-#include <termio.h>
-#define CHARTYPES 64
 
+#define CHARTYPES 64
 #define LIFE 7
+
+#ifdef _WIN32
+  #include <conio.h>
+  #define CLEAR "cls"
+  char getChar(void){ return (char)_getch(); }
+#else
+  #include <termio.h>
+  #define CLEAR "clear"
+#endif
+
 
 char *gene[256];
 int curgene = 0;
@@ -67,7 +76,7 @@ void hangman(char *words[],int life){
   input[0]=' ';
 
   while(game){
-    system("clear");
+    system(CLEAR);
     for(int i=0;i<wlen;i++){
       sttflag=0;
       for(int j=0;input[j]!='\0'&&j<CHARTYPES;j++) if(input[j]==word[i]||( input[j]==word[i]-'A'+'a' && (input[j]<='z'&&input[j]>='a') )) sttflag=1;
@@ -105,7 +114,7 @@ void hangman(char *words[],int life){
     }
 
     if(life<1){
-      system("clear");
+      system(CLEAR);
       game=0;
       printf("Failure (answer:%s)\n",word);
       break;
@@ -117,7 +126,7 @@ void hangman(char *words[],int life){
       if(cflag==0) endflag=0;
     }
     if(endflag==1){
-      system("clear");
+      system(CLEAR);
       if(isPafe==1) printf("PERFECT!!!! (answer:%s)\n",word);
       else{
         printf("Success!! (answer:%s)\n",word);
@@ -136,25 +145,10 @@ void hangman(char *words[],int life){
     while((c = getchar()) != '\n');
     hangman(words,inputlife);
   }
-  else exit;
 
 }
 
-
-int main(){
-
-  srand((unsigned int)time(NULL));
-  int mode,modechanged=0;
-  char enterkesi;
-
-  printf("Sellect Gamemode\n");
-  printf("- 0 Default Words\n");
-  printf("- 1 Custom Words (need words file)\n");
-
-  scanf("%d",&mode);
-
-  if(mode==1){
-
+int leadfile(char *words[]){
     char filename[256]; for (int i=0;i<256;i++) filename[i]=0;
     char ans[256];
     printf("Input wordfile name:");
@@ -165,6 +159,7 @@ int main(){
     char buf[256];
     fp = fopen(filename, "r");
     int fsize=0;
+
     if(fp==NULL){
       printf("Can't open the file. Will you use default words?(Y/n)");
       scanf(" %255s",ans);
@@ -173,9 +168,9 @@ int main(){
       if(ans[0]=='n'||ans[0]=='N'){
         printf("Program Finished\n");
         for(int freei=0;freei<curgene;freei++) free(gene[freei]);
-        return 0;
+        return -1;
       }
-      else modechanged=1;
+      else return 1;
     }
     else{
       // size check
@@ -190,9 +185,9 @@ int main(){
         if(ans[0]=='n'||ans[0]=='N'){
           printf("Program Finished\n");
           for(int freei=0;freei<curgene;freei++) free(gene[freei]);
-          return 0;
+          return -1;
         }
-        else modechanged=1;
+        else return 1;
       }
       else{
         fseek(fp, 0L, SEEK_SET);
@@ -213,7 +208,6 @@ int main(){
         gene[curgene] = NULL;
 
         // delete if not include word but if covered with "", include it
-        char *word[256];
         char temp[256];
 
         for(curgene=0;gene[curgene]!=NULL;curgene++){
@@ -243,20 +237,40 @@ int main(){
               j++;
             }
           }
-          word[curgene] = (char *)malloc(strlen(temp)+1);
+          words[curgene] = (char *)malloc(strlen(temp)+1);
           for(int i=0;temp[i]!='\0';i++){
-            word[curgene][i]=temp[i];
+            words[curgene][i]=temp[i];
 //            printf("Input:%c\n",temp[i]);
           }
         }
 
-
-        fclose(fp);
-        word[curgene] = NULL;
-//        sleep(3);
-        hangman(word,LIFE);
       }
     }
+    fclose(fp);
+
+}
+
+int main(){
+
+  srand((unsigned int)time(NULL));
+  int mode,modechanged=0;
+  char enterkesi;
+
+  printf("Sellect Gamemode\n");
+  printf("- 0 Default Words\n");
+  printf("- 1 Custom Words (need words file)\n");
+
+  scanf("%d",&mode);
+
+  if(mode==1){
+
+    char *words[256];
+    modechanged=leadfile(words);
+    if(modechanged==-1) return -1;
+
+    words[curgene] = NULL;
+//    sleep(3);
+    hangman(words,LIFE);
   }
 
   if(mode==0||modechanged==1){
