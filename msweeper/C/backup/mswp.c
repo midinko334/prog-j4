@@ -174,7 +174,7 @@ void gameloop(int **cell,int size){
   finish_game(cell,size);
   if(finflag==0) printf("*** GAME OVER ***\n");
   else if(finflag==1) printf("*** GAME CLEAR ***\n");
-  else ("*** GAME END ***\n");
+  else printf("*** GAME END ***\n");
 }
 
 int main(){
