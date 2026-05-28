@@ -617,8 +617,7 @@ print_board:
     popq  %rbx
     ret
 
-## read_input → rax(row), rbx(col)
-## rax=row rbx=col
+## read_input → rax(col-x), rbx(row-y)
 ## failed -> rax=-1
 
 read_input:

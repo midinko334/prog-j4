@@ -5,14 +5,12 @@
 
 #ifdef _WIN32
   #include <conio.h>
-  #define CLEAR "cls"
   char getChar(void){
     return (char)_getch();
   }
 
 #else
   #include <termios.h>
-  #define CLEAR "clear"
   char getChar(void){
     struct termios old_term, new_term;
     char c;
@@ -51,7 +49,7 @@ int board_sel(int **cell,int size,int xy){
   char input;
 
   while(1){
-    system(CLEAR);
+    printf("\x1b[2J\x1b[H");
     printf("# | ");
     for(int i=0;i<size;i++){
       if(i<10) printf("%d ",i);
@@ -68,6 +66,8 @@ int board_sel(int **cell,int size,int xy){
         if(j+(i*size)==xy) printf("\x1b[7m");
         if(cell[i][j]>0&&cell[i][j]<=8) printf("%d ",cell[i][j]);
         else if(cell[i][j]==0) printf("  ");
+        else if(cell[i][j]==10||cell[i][j]==-2) printf("M ");
+        else if(cell[i][j]==11||cell[i][j]==-3) printf("? ");
         else printf(". ");
         printf("\x1b[0m");
       }
@@ -77,8 +77,20 @@ int board_sel(int **cell,int size,int xy){
     if(input=='\n'||input==' ') break;
     if(input=='w'&&xy-size>=0) xy-=size;
     if(input=='a'&&(xy%size)-1>=0) xy--;
-    if(input=='s'&&xy+size<=XY(size)) xy+=size;
-    if(input=='d'&&(xy%size)+1<=size) xy++;
+    if(input=='s'&&xy+size<XY(size)) xy+=size;
+    if(input=='d'&&(xy%size)+1<size) xy++;
+    if(input=='m'){
+      if(cell[xy/size][xy%size]==9) cell[xy/size][xy%size]=10;
+      else if(cell[xy/size][xy%size]==-1) cell[xy/size][xy%size]=-2;
+      else if(cell[xy/size][xy%size]==10) cell[xy/size][xy%size]=9;
+      else if(cell[xy/size][xy%size]==-2) cell[xy/size][xy%size]=-1;
+    }
+    if(input=='q'){
+      if(cell[xy/size][xy%size]==9) cell[xy/size][xy%size]=11;
+      else if(cell[xy/size][xy%size]==-1) cell[xy/size][xy%size]=-3;
+      else if(cell[xy/size][xy%size]==11) cell[xy/size][xy%size]=9;
+      else if(cell[xy/size][xy%size]==-3) cell[xy/size][xy%size]=-1;
+    }
   }
 
   return xy;
@@ -88,14 +100,14 @@ void opencell(int **cell,int x,int y,int size){
   int count=0;
   for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
    if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size))
-   if(cell[y+j][x+k]==-1) count++;
+   if(cell[y+j][x+k]==-1||cell[y+j][x+k]==-2||cell[y+j][x+k]==-3) count++;
   cell[y][x]=count;
   if(count==0) for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
-   if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size)&&(cell[y+j][x+k]==9)) opencell(cell,x+k,y+j,size);
+   if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size)&&(cell[y+j][x+k]==9||cell[y+j][x+k]==10||cell[y+j][x+k]==11)) opencell(cell,x+k,y+j,size);
 }
 
 void finish_game(int **cell,int size){
-    system(CLEAR);
+    printf("\x1b[2J\x1b[H");
     printf("# | ");
     for(int i=0;i<size;i++){
       if(i<10) printf("%d ",i);
@@ -111,7 +123,7 @@ void finish_game(int **cell,int size){
       for(int j=0;j<size;j++){
         if(cell[i][j]>0&&cell[i][j]<=8) printf("%d ",cell[i][j]);
         else if(cell[i][j]==0) printf("  ");
-        else if(cell[i][j]==-1) printf("* ");
+        else if(cell[i][j]==-1||cell[i][j]==-2||cell[i][j]==-3) printf("* ");
         else printf(". ");
       }
       printf("\n");
@@ -119,10 +131,11 @@ void finish_game(int **cell,int size){
 }
 
 void gameloop(int **cell,int size,int xy){
-  int finflag,lastflag=2,clflag=0,x,y;
+  unsigned int sttime=(unsigned)time(NULL);
+  int finflag=2,clflag=0,x,y;
   while(1){
     clflag=1;
-    for(int i=0;i<size;i++) for(int j=0;j<size;j++) if(cell[i][j]==9) clflag=0;
+    for(int i=0;i<size;i++) for(int j=0;j<size;j++) if(cell[i][j]==9||cell[i][j]==10||cell[i][j]==11) clflag=0;
     if(clflag){
       finflag=1;
       break;
@@ -136,6 +149,18 @@ void gameloop(int **cell,int size,int xy){
     if(cell[y][x]==9){
       opencell(cell,x,y,size);
     }
+    if(cell[y][x]>=1&&cell[y][x]<=8){
+      int count=0;
+      for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
+       if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size))
+       if(cell[y+j][x+k]==10||cell[y+j][x+k]==11||cell[y+j][x+k]==-2||cell[y+j][x+k]==-3) count++;
+      if(count==cell[y][x]) for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
+       if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size)){
+        if(cell[y+j][x+k]==9) opencell(cell,x+k,y+j,size);
+        else if(cell[y+j][x+k]==-1) finflag=0;
+      }
+      if(finflag==0) break;
+    }
     else if(cell[y][x]==-1){
       finflag=0;
       break;
@@ -143,12 +168,12 @@ void gameloop(int **cell,int size,int xy){
   }
   finish_game(cell,size);
   if(finflag==0) printf("*** GAME OVER ***\n");
-  else if(finflag==1) printf("*** GAME CLEAR ***\n");
+  else if(finflag==1) printf("*** GAME CLEAR ***\nClear Time : %ds\n",(unsigned)time(NULL)-sttime);
   else printf("*** GAME END ***\n");
 }
 
 void game_start(){
-  int size;
+  int size=0;
   int mine=0,c,*senkei;
   printf("=== M Sweeper ===\n");
   while(size<2||size>36){
@@ -165,7 +190,8 @@ void game_start(){
   }
 
   srand((unsigned)time(NULL));
-  int **cell=(int**)malloc(sizeof(int*)*(size));	//0-8:opened -1:mine 9:safe 10:firstopen(or near)
+  //0-8:opened -1:mine 9:safe 10:mine(marked) 11:safe(marked) 12:mine(q) 13:safe(q)
+  int **cell=(int**)malloc(sizeof(int*)*(size));
   for(int i=0;i<size;i++) cell[i]=(int*)malloc(sizeof(int)*(size));
   senkei=(int*)malloc(sizeof(int)*XY(size));
 
@@ -181,7 +207,7 @@ void game_start(){
     if(senkei[i]==input) swap(&senkei[i],&senkei[XY(size)-1]);
     else for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
      if((input%(size)+k>=0&&input%(size)+k<(size))&&(input/(size)+j>=0&&input/(size)+j<(size)))
-     if(senkei[i]+j+(k*(size))==input){
+     if(input+k+(j*(size))==senkei[i]){
       swap(&senkei[i],&senkei[XY(size)-2-cur]);
       cur++;
       i--;
@@ -204,6 +230,7 @@ void game_start(){
   gameloop(cell,size,input);
   for(int i=0;i<size;i++) free(cell[i]);
   free(cell);
+
 }
 
 int main(){
