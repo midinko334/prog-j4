@@ -1,11 +1,11 @@
-## sys call No.
+
+
     .equ SYS_READ,   0
     .equ SYS_WRITE,  1
     .equ SYS_EXIT,   60
     .equ STDOUT,     1
     .equ STDIN,      0
 
-## .data  ─ string literals
     .section .data
 msg_board:   .string "Board size (Max 36 Min 2): "
 msg_mines:   .string "Mine count : "
@@ -19,7 +19,6 @@ msg_newline: .string "\n"
 msg_space:   .string " "
 msg_dot:     .string "."
 
-## .bss  ─ uninit data
     .section .bss
 board:       .skip 1500     ## 1=unsafe, 0=safe
 visible:     .skip 1500     ## 1=opened, 0=unopened
@@ -31,12 +30,10 @@ mine_count:  .quad 0
 fcl_done:    .quad 0        ## 0=first  1=done
 opcell_stack: .skip 12000
 
-## .text  ─ code
     .section .text
     .global _start
 
-## strlen: rsi → rax
-## rsi(string pointer) to rax(string length)
+## rsi → rax
 strlen:
     xorq %rax, %rax
 .strlen_loop:
@@ -47,10 +44,10 @@ strlen:
 .strlen_done:
     ret
 
-## print_str: call with string pointer set in "rsi"
+## call with string pointer set in "rsi"
 ## clobbers: rax, rdi, rdx
 print_str:
-    call  strlen           ## rax = len
+    call  strlen
     movq  %rax, %rdx
     movq  $SYS_WRITE, %rax
     movq  $STDOUT, %rdi
@@ -61,13 +58,12 @@ print_header:
     pushq %rbx
     pushq %r12
 
-    ## first blank "  "
     movb  $' ', %al
     call  print_char
     movb  $' ', %al
     call  print_char
 
-    xorq  %r12, %r12          ## col = 0
+    xorq  %r12, %r12
 
 .ph_loop:
     ## if col >= board_size -> end
@@ -100,7 +96,7 @@ print_header:
     popq  %rbx
     ret
 
-## print_char: call with character set in "al"
+## call with character set in "al"
 print_char:
     movb  %al, char_buf(%rip)
     movq  $SYS_WRITE, %rax
@@ -110,7 +106,6 @@ print_char:
     syscall
     ret
 
-## print_number
 ## input: rax
 print_number:
     pushq %rbx
@@ -165,7 +160,7 @@ print_number:
     popq %rbx
     ret
 
-## init_board: clear board and visible
+## clear board and visible
 init_board:
     pushq %rdi
     pushq %rcx
@@ -187,8 +182,8 @@ init_board:
     popq  %rdi
     ret
 
-## place_mines: place MINE_COUNT mines randomly
-## pseudo random number: use lower bits of rdtsc
+## place MINE_COUNT mines randomly
+## use lower bits of rdtsc
 place_mines:
     pushq  %rbx
     pushq  %r12
@@ -196,7 +191,7 @@ place_mines:
     pushq  %r14
     pushq  %r15
     movq   board_size(%rip), %r14
-    imulq  %r14, %r14     ## r14 = size²
+    imulq  %r14, %r14
     xorq   %r12, %r12
 .pm_next:
     movq  mine_count(%rip), %rax
@@ -207,23 +202,23 @@ place_mines:
     shlq  $32, %rdx
     orq   %rdx, %rax
     xorq  %rdx, %rdx
-    divq  %r14                 ## rdx = start index (0 ~ size²-1)
-    movq  %rdx, %r13           ## r13 = current scan index
+    divq  %r14
+    movq  %rdx, %r13
     movq  %r13, %r15
 .pm_scan:
     leaq  board(%rip), %r9
     cmpb  $1, (%r9,%r13)
-    je    .pm_scan_next        ## already mine
+    je    .pm_scanext
 
     movb  $1, (%r9,%r13)
     incq  %r12
     jmp   .pm_next
-.pm_scan_next:
+.pm_scanext:
     incq  %r13
     cmpq  %r14, %r13
-    jl    .pm_scan_wrap
+    jl    .pm_scwrap
     xorq  %r13, %r13
-.pm_scan_wrap:
+.pm_scwrap:
     cmpq  %r15, %r13
     je    .pm_done
     jmp   .pm_scan
@@ -235,9 +230,8 @@ place_mines:
     popq  %rbx
     ret
 
-## first_click: rdi=row, rsi=col
+## rdi=y, rsi=x
 ## move mine if first click cell is mine
-
 first_click:
     pushq %r12
     pushq %r13
@@ -249,7 +243,7 @@ first_click:
     movq  %rsi, %r13
     movq  board_size(%rip), %rax
     imulq %rax, %r12
-    addq  %r13, %r12           ## r12 = row*size + col
+    addq  %r13, %r12
 
     ## nothing to do if its not mine
     leaq  board(%rip), %r9
@@ -259,31 +253,31 @@ first_click:
     movb  $0, (%r9,%r12)
     ## decide cell with rdtsc and start scan
     movq  board_size(%rip), %r14
-    imulq %r14, %r14           ## r14 = size²
+    imulq %r14, %r14
 
     rdtsc
     shlq  $32, %rdx
     orq   %rdx, %rax
     xorq  %rdx, %rdx
     divq  %r14
-    movq  %rdx, %r13           ## r13 = scan index
-    movq  %r13, %r15           ## r15 = start
+    movq  %rdx, %r13
+    movq  %r13, %r15
 .fc_scan:
     ## skip if its same cell
     cmpq  %r12, %r13
-    je    .fc_scan_next
+    je    .fc_scanext
     ## skip if it already is mine
     leaq  board(%rip), %r9
     cmpb  $1, (%r9,%r13)
-    je    .fc_scan_next
+    je    .fc_scanext
     movb  $1, (%r9,%r13)
     jmp   .fc_done
-.fc_scan_next:
+.fc_scanext:
     incq  %r13
     cmpq  %r14, %r13
-    jl    .fc_scan_wrap
+    jl    .fc_scwrap
     xorq  %r13, %r13
-.fc_scan_wrap:
+.fc_scwrap:
     cmpq  %r15, %r13
     je    .fc_done
     jmp   .fc_scan
@@ -296,7 +290,7 @@ first_click:
     popq  %r12
     ret
 
-## count_mines: number of surrounding mines
+## number of surrounding mines
 count_mines:
     pushq %rbx
     pushq %r12
@@ -304,44 +298,44 @@ count_mines:
     pushq %r14
     pushq %r15
     pushq %r8
-    movq  %rdi, %r12            ## row
-    movq  %rsi, %r13            ## col
+    movq  %rdi, %r12            ## y
+    movq  %rsi, %r13            ## x
     xorq  %r14, %r14            ## count = 0
-    movq  board_size(%rip), %r8 ## r8 = board_size
-    movq  $-1, %r15             ## dr = -1
+    movq  board_size(%rip), %r8
+    movq  $-1, %r15
 .cm_dr:
     cmpq  $1, %r15
     jg    .cm_done
-    movq  $-1, %rbx            ## dc = -1
+    movq  $-1, %rbx
 .cm_dc:
     cmpq  $1, %rbx
-    jg    .cm_dr_next
+    jg    .cm_drnext
     testq %r15, %r15
-    jnz   .cm_not_center
+    jnz   .cm_around
     testq %rbx, %rbx
-    jz    .cm_dc_next
-.cm_not_center:
+    jz    .cm_dcnext
+.cm_around:
     movq  %r12, %rax
-    addq  %r15, %rax           ## nr = row + dr
-    js    .cm_dc_next
+    addq  %r15, %rax
+    js    .cm_dcnext
     cmpq  %r8, %rax
-    jge   .cm_dc_next
+    jge   .cm_dcnext
     movq  %r13, %rcx
-    addq  %rbx, %rcx           ## nc = col + dc
-    js    .cm_dc_next
+    addq  %rbx, %rcx
+    js    .cm_dcnext
     cmpq  %r8, %rcx
-    jge   .cm_dc_next
+    jge   .cm_dcnext
     ## index = nr*board_size + nc
     imulq %r8, %rax
     addq  %rcx, %rax
     leaq board(%rip),%r9
     cmpb  $1, (%r9,%rax)
-    jne   .cm_dc_next
+    jne   .cm_dcnext
     incq  %r14
-.cm_dc_next:
+.cm_dcnext:
     incq  %rbx
     jmp   .cm_dc
-.cm_dr_next:
+.cm_drnext:
     incq  %r15
     jmp   .cm_dr
 .cm_done:
@@ -354,7 +348,7 @@ count_mines:
     popq  %rbx
     ret
 
-## open_cell: rdi=row, rsi=col → rax
+## rdi=y, rsi=x → rax
 ## 0: safe  1: unsafe  2: except
 open_cell:
     pushq %rbx
@@ -406,7 +400,7 @@ open_cell:
     popq  %rbx
     ret
 
-## open_cell_start: rdi=row, rsi=col → rax
+## rdi=y, rsi=x → rax
 ## 0: safe  1: mine  2: already
 ## if the cell's adjacent is 0, open it with repeat DFS
 open_cell_start:
@@ -423,12 +417,12 @@ open_cell_start:
 
     ## reset DFS stack (elements is managed by rbp)
     ## stack row*size+col to opcell_stack
-    xorq  %rbp, %rbp                   ## stack_top = 0
+    xorq  %rbp, %rbp
     movq  board_size(%rip), %rax
     imulq %rdi, %rax
-    addq  %rsi, %rax                   ## rax = row*size + col
+    addq  %rsi, %rax
     leaq  opcell_stack(%rip), %r15
-    movq  %rax, (%r15,%rbp,8)          ## push index
+    movq  %rax, (%r15,%rbp,8)
     incq  %rbp
 
 .ocs_loop:
@@ -436,75 +430,75 @@ open_cell_start:
     jz    .ocs_done
     ## pop index
     decq  %rbp
-    movq  (%r15,%rbp,8), %r12          ## r12 = index
+    movq  (%r15,%rbp,8), %r12
 
     movq  board_size(%rip), %rbx
     movq  %r12, %rax
     xorq  %rdx, %rdx
     divq  %rbx
-    movq  %rax, %r13                   ## r13 = row
-    movq  %rdx, %r14                   ## r14 = col
+    movq  %rax, %r13
+    movq  %rdx, %r14
     ## check cell's adjacent
     movq  %r13, %rdi
     movq  %r14, %rsi
     call  count_mines
     testq %rax, %rax
-    jnz   .ocs_loop                    ## skip if mines > 0
+    jnz   .ocs_loop
 
-    movq  $-1, %r8                     ## dr = -1
+    movq  $-1, %r8
 .ocs_dr:
     cmpq  $1, %r8
     jg    .ocs_loop
 
-    movq  $-1, %r9                     ## dc = -1
+    movq  $-1, %r9
 .ocs_dc:
     cmpq  $1, %r9
-    jg    .ocs_dr_next
+    jg    .ocs_drnext
 
     ## center skip
     testq %r8, %r8
-    jnz   .ocs_not_center
+    jnz   .ocs_around
     testq %r9, %r9
-    jz    .ocs_dc_next
-.ocs_not_center:
+    jz    .ocs_dcnext
+.ocs_around:
     ## nr = r13 + dr
     movq  %r13, %rax
     addq  %r8, %rax
-    js    .ocs_dc_next
+    js    .ocs_dcnext
     movq  board_size(%rip), %rbx
     cmpq  %rbx, %rax
-    jge   .ocs_dc_next
+    jge   .ocs_dcnext
 
-    ## nc = r14 + dc
     movq  %r14, %rcx
     addq  %r9, %rcx
-    js    .ocs_dc_next
+    js    .ocs_dcnext
     cmpq  %rbx, %rcx
-    jge   .ocs_dc_next
+    jge   .ocs_dcnext
     ## skip if it already is opened
     imulq %rbx, %rax
-    addq  %rcx, %rax                   ## rax = nr*size + nc
+    addq  %rcx, %rax
     leaq  visible(%rip), %r10
     cmpb  $1, (%r10,%rax)
-    je    .ocs_dc_next
+    je    .ocs_dcnext
     ## skip if its mine
     leaq  board(%rip), %r11
     cmpb  $1, (%r11,%rax)
-    je    .ocs_dc_next
+    je    .ocs_dcnext
 
     movb  $1, (%r10,%rax)
     movq  %rax, (%r15,%rbp,8)
     incq  %rbp
 
-.ocs_dc_next:
+.ocs_dcnext:
     incq  %r9
     jmp   .ocs_dc
-.ocs_dr_next:
+.ocs_drnext:
     incq  %r8
     jmp   .ocs_dr
 
 .ocs_done:
-    xorq  %rax, %rax                   ## return 0 (safe)
+    xorq  %rax, %rax
+    ## return 0
 .ocs_ret:
     popq  %rbp
     popq  %r15
@@ -544,14 +538,14 @@ check_clear:
     popq  %rbx
     ret
 
-## print_row_num: call with row number set in rax
-print_row_num:
+## call with row number set in rax
+print_rownum:
     call  print_number
     leaq  msg_space(%rip), %rsi
     call  print_str
     ret
 
-## print_cell: r12=row, r13=col, rbx=index
+## r12=y, r13=x, rbx=index
 print_cell:
     leaq  visible(%rip),%r10
     cmpb  $1, (%r10,%rbx)
@@ -573,20 +567,20 @@ print_cell:
 .pc_done:
     ret
 
-## print_board: display the entire board
+## display the entire board
 print_board:
     pushq %rbx
     pushq %r12
     pushq %r13
     call  print_header
-    xorq  %r12, %r12           ## row = 0
+    xorq  %r12, %r12
 .pb_row:
     movq  board_size(%rip), %rax
     cmpq  %rax, %r12
     jge   .pb_done
     movq  %r12, %rax
-    call  print_row_num
-    xorq  %r13, %r13           ## col = 0
+    call  print_rownum
+    xorq  %r13, %r13
 .pb_col:
     movq  board_size(%rip), %rax
     cmpq  %rax, %r13
@@ -600,10 +594,10 @@ print_board:
     movq board_size(%rip), %rax
     decq %rax
     cmpq %rax, %r13
-    je    .pb_no_sp
+    je    .pb_nosp
     leaq  msg_space(%rip), %rsi
     call  print_str
-.pb_no_sp:
+.pb_nosp:
     incq  %r13
     jmp   .pb_col
 .pb_eol:
@@ -617,7 +611,7 @@ print_board:
     popq  %rbx
     ret
 
-## read_input → rax(col-x), rbx(row-y)
+## rax(xmax-x), rbx(ymax-y)
 ## failed -> rax=-1
 
 read_input:
@@ -635,7 +629,7 @@ read_input:
 
     ## row
     movzbq input_buf(%rip), %rax
-    call   char_to_base36
+    call   char_base36
     cmpq   $-1, %rax
     je     .ri_fail
 
@@ -643,7 +637,7 @@ read_input:
 
     ## col
     movzbq input_buf+1(%rip), %rax
-    call   char_to_base36
+    call   char_base36
     cmpq   $-1, %rax
     je     .ri_fail
 
@@ -668,7 +662,7 @@ read_input:
 ## output: rax
 ## failed: -1
 
-char_to_base36:
+char_base36:
     ## '0'-'9'
     cmpb $'0', %al
     jl .ctb_upper
@@ -703,9 +697,7 @@ char_to_base36:
     movq $-1, %rax
     ret
 
-## read_number -> rax
 ## failed: rax = -1
-
 read_number:
     pushq %rbx
     pushq %rcx
@@ -721,7 +713,7 @@ read_number:
     cmpq  $1, %rax
     jle   .rn_fail
 
-    xorq  %rax, %rax      ## result = 0
+    xorq  %rax, %rax
     leaq  input_buf(%rip), %rbx
 
 .rn_loop:
@@ -757,7 +749,6 @@ read_number:
     popq  %rbx
     ret
 
-## game_loop: main loop
 game_loop:
     pushq %rbx
     pushq %r12
@@ -770,8 +761,8 @@ game_loop:
     call  read_input
     cmpq  $-1, %rax
     je    .gl_invalid
-    movq  %rax, %r12           ## row
-    movq  %rbx, %r13           ## col
+    movq  %rax, %r12
+    movq  %rbx, %r13
     movq  %r12, %rdi
     movq  %r13, %rsi
     call  open_cell_start
@@ -826,7 +817,7 @@ game_loop:
 
 setup_game:
 
-.sg_board_input:
+.sg_inputboard:
     ## print prompt
     leaq  msg_board(%rip), %rsi
     call  print_str
@@ -836,22 +827,22 @@ setup_game:
 
     ## failed?
     cmpq  $2, %rax
-    jl    .sg_invalid_board
+    jl    .sg_invboard
 
     cmpq  $36, %rax
-    jg    .sg_invalid_board
+    jg    .sg_invboard
 
     ## save board_size
     movq  %rax, board_size(%rip)
 
-    jmp   .sg_mine_input
+    jmp   .sg_inputmine
 
-.sg_invalid_board:
+.sg_invboard:
     leaq  msg_invalid(%rip), %rsi
     call  print_str
-    jmp   .sg_board_input
+    jmp   .sg_inputboard
 
-.sg_mine_input:
+.sg_inputmine:
     leaq  msg_mines(%rip), %rsi
     call  print_str
 
@@ -859,7 +850,7 @@ setup_game:
 
     ## must be >=1
     cmpq  $1, %rax
-    jl    .sg_invalid_mine
+    jl    .sg_invmine
 
     ## max = size*size-1
     movq  board_size(%rip), %rbx
@@ -867,25 +858,25 @@ setup_game:
     decq  %rbx
 
     cmpq  %rbx, %rax
-    jg    .sg_invalid_mine
+    jg    .sg_invmine
 
     ## save mine_count
     movq  %rax, mine_count(%rip)
 
     ret
 
-.sg_invalid_mine:
+.sg_invmine:
     leaq  msg_invalid(%rip), %rsi
     call  print_str
-    jmp   .sg_mine_input
+    jmp   .sg_inputmine
 
-## finish_game: after finish the game, open all mine
+## after finish the game, open all mine
 finish_game:
     pushq  %rbx
     pushq  %r12
     pushq  %r13
     call   print_header
-    xorq   %r12, %r12           ## row = 0
+    xorq   %r12, %r12
 
 .fg_row:
     movq   board_size(%rip), %rax
@@ -893,9 +884,9 @@ finish_game:
     jge    .fg_done
 
     movq   %r12, %rax
-    call   print_row_num
+    call   print_rownum
 
-    xorq   %r13, %r13           ## col = 0
+    xorq   %r13, %r13
 
 .fg_col:
     movq   board_size(%rip), %rax
@@ -926,10 +917,10 @@ finish_game:
     movq   board_size(%rip), %rax
     decq   %rax
     cmpq   %rax, %r13
-    je     .fg_no_sp
+    je     .fg_nosp
     leaq   msg_space(%rip), %rsi
     call   print_str
-    jmp    .fg_no_sp
+    jmp    .fg_nosp
 
 .fg_mine:
     movb   $'*', %al
@@ -937,7 +928,7 @@ finish_game:
     movb   $' ', %al
     call   print_char
 
-.fg_no_sp:
+.fg_nosp:
     incq   %r13
     jmp    .fg_col
 
@@ -953,7 +944,6 @@ finish_game:
     popq   %rbx
     ret
 
-## _start: entry
 _start:
     leaq  msg_title(%rip), %rsi
     call  print_str
