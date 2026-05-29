@@ -73,6 +73,7 @@ int board_sel(int **cell,int size,int xy){
       }
       printf("\n");
     }
+    printf("move-wasd mark-m question-q:");
     input=getChar();
     if(input=='\n'||input==' ') break;
     if(input=='w'&&xy-size>=0) xy-=size;
