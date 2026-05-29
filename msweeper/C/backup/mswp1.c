@@ -42,7 +42,6 @@
 #endif
 
 #define XY(size) ((size)*(size))
-#define BOARDSIZE 50
 
 void swap(int *a,int *b){ int c; c=*a; *a=*b; *b=c; }
 
@@ -51,7 +50,18 @@ int board_sel(int **cell,int size,int xy){
 
   while(1){
     printf("\x1b[2J\x1b[H");
+    printf("# | ");
     for(int i=0;i<size;i++){
+      if(i<10) printf("%d ",i);
+      else if(i>=10&&i<36) printf("%c ",i-10+'A');
+    }
+    printf("\n");
+    printf("--+");
+    for(int i=0;i<size;i++) printf("--");
+    printf("\n");
+    for(int i=0;i<size;i++){
+      if(i<10) printf("%d | ",i);
+      else if(i>=10&&i<36) printf("%c | ",i-10+'A');
       for(int j=0;j<size;j++){
         if(j+(i*size)==xy) printf("\x1b[7m");
         if(cell[i][j]>0&&cell[i][j]<=8) printf("%d ",cell[i][j]);
@@ -99,7 +109,18 @@ void opencell(int **cell,int x,int y,int size){
 
 void finish_game(int **cell,int size){
     printf("\x1b[2J\x1b[H");
+    printf("# | ");
     for(int i=0;i<size;i++){
+      if(i<10) printf("%d ",i);
+      else if(i>=10&&i<36) printf("%c ",i-10+'A');
+    }
+    printf("\n");
+    printf("--+");
+    for(int i=0;i<size;i++) printf("--");
+    printf("\n");
+    for(int i=0;i<size;i++){
+      if(i<10) printf("%d | ",i);
+      else if(i>=10&&i<36) printf("%c | ",i-10+'A');
       for(int j=0;j<size;j++){
         if(cell[i][j]>0&&cell[i][j]<=8) printf("%d ",cell[i][j]);
         else if(cell[i][j]==0) printf("  ");
@@ -156,11 +177,11 @@ void game_start(){
   int size=0;
   int mine=0,c,*senkei;
   printf("=== M Sweeper ===\n");
-  while(size<2||size>BOARDSIZE){
-    printf("Board size (Max %d Min 2): ",BOARDSIZE);
+  while(size<2||size>36){
+    printf("Board size (Max 36 Min 2): ");
     scanf("%d",&size);
     while((c = getchar()) != '\n' && c != EOF);
-    if(size<2||size>BOARDSIZE) printf("Invalid Input\n");
+    if(size<2||size>36) printf("Invalid Input\n");
   }
   while(mine>=XY(size)||mine<=0){
     printf("Mine count : ");
