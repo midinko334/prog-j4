@@ -63,13 +63,14 @@ int board_sel(int **cell,int size,int xy){
       }
       printf("\n");
     }
-    printf("move:wasd, mark:m, question:q, open:space or enter\n");
+    printf("move:wasd, mark:m, question:q, open:space or enter, abort:g\n");
     input=getChar();
     if(input=='\n'||input==' ') break;
     if(input=='w'&&xy-size>=0) xy-=size;
     if(input=='a'&&(xy%size)-1>=0) xy--;
     if(input=='s'&&xy+size<XY(size)) xy+=size;
     if(input=='d'&&(xy%size)+1<size) xy++;
+    if(input=='g'){ xy=-1; break;}
     if(input=='m'){
       if(cell[xy/size][xy%size]==9) cell[xy/size][xy%size]=10;
       else if(cell[xy/size][xy%size]==-1) cell[xy/size][xy%size]=-2;
@@ -97,11 +98,21 @@ void opencell(int **cell,int x,int y,int size){
    if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size)&&(cell[y+j][x+k]==9||cell[y+j][x+k]==10||cell[y+j][x+k]==11)) opencell(cell,x+k,y+j,size);
 }
 
+void fg_opencell(int **cell,int x,int y,int size){
+  int count=0;
+  for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
+   if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size))
+   if(cell[y+j][x+k]==-1||cell[y+j][x+k]==-2||cell[y+j][x+k]==-3) count++;
+  cell[y][x]=count;
+}
+
 void finish_game(int **cell,int size){
     printf("\x1b[2J\x1b[H");
     for(int i=0;i<size;i++){
       for(int j=0;j<size;j++){
+        if(cell[i][j]==9||cell[i][j]==11) fg_opencell(cell,j,i,size);
         if(cell[i][j]>0&&cell[i][j]<=8) printf("%d ",cell[i][j]);
+        else if(cell[i][j]==10) printf("\x1b[31mM \x1b[39m");
         else if(cell[i][j]==0) printf("  ");
         else if(cell[i][j]==-1||cell[i][j]==-2||cell[i][j]==-3) printf("* ");
         else printf(". ");
@@ -122,6 +133,7 @@ void gameloop(int **cell,int size,int xy){
     }
 
     xy=board_sel(cell,size,xy);
+    if(xy==-1) break;
 
     x=xy%(size);
     y=xy/(size);
@@ -170,7 +182,7 @@ void game_start(){
   }
 
   srand((unsigned)time(NULL));
-  //0-8:opened -1:mine 9:safe 10:mine(marked) 11:safe(marked) 12:mine(q) 13:safe(q)
+  //0-8:opened -1:mine 9:safe -2:mine(marked) 10:safe(marked) -3:mine(q) 11:safe(q)
   int **cell=(int**)malloc(sizeof(int*)*(size));
   for(int i=0;i<size;i++) cell[i]=(int*)malloc(sizeof(int)*(size));
   senkei=(int*)malloc(sizeof(int)*XY(size));
