@@ -29,7 +29,6 @@ board_size:  .quad 0
 mine_count:  .quad 0
 fcl_done:    .quad 0        ## 0=first  1=done
 opcell_stack: .skip 12000
-randflag:    .quad 0
 
     .section .text
     .global _start
@@ -161,31 +160,6 @@ print_number:
     popq %rbx
     ret
 
-rand:
-    movq  randflag(%rip), %rax
-    testq %rax, %rax
-    jnz   .r_ok
-    rdtsc
-    shlq  $32, %rdx
-    orq   %rdx, %rax
-    testq %rax, %rax
-    jnz   .r_seed
-    movq  $0x123456789ABCDEF, %rax
-.r_seed:
-    movq  %rax, randflag(%rip)
-.r_ok:
-    movq  %rax, %rcx
-    shlq  $13, %rcx
-    xorq  %rcx, %rax
-    movq  %rax, %rcx
-    shrq  $7, %rcx
-    xorq  %rcx, %rax
-    movq  %rax, %rcx
-    shlq  $17, %rcx
-    xorq  %rcx, %rax
-    movq  %rax, randflag(%rip)
-    ret
-
 ## clear board and visible
 init_board:
     pushq %rdi
@@ -208,8 +182,6 @@ init_board:
     popq  %rdi
     ret
 
-
-
 ## place MINE_COUNT mines randomly
 ## use lower bits of rdtsc
 place_mines:
@@ -226,7 +198,9 @@ place_mines:
     cmpq  %rax, %r12
     jge   .pm_done
 
-    call  rand
+    rdtsc
+    shlq  $32, %rdx
+    orq   %rdx, %rax
     xorq  %rdx, %rdx
     divq  %r14
     movq  %rdx, %r13
@@ -281,7 +255,9 @@ first_click:
     movq  board_size(%rip), %r14
     imulq %r14, %r14
 
-    call  rand
+    rdtsc
+    shlq  $32, %rdx
+    orq   %rdx, %rax
     xorq  %rdx, %rdx
     divq  %r14
     movq  %rdx, %r13
