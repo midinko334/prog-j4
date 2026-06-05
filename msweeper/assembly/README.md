@@ -1,1 +1,7 @@
-x86-64 Linux assembly (AT&T/GNU as)
+x86-64 Assembly (AT&T/GNU as)
+
+- How to compile:
+make compile
+
+- How to run:
+./a.out

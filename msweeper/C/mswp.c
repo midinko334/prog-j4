@@ -15,25 +15,14 @@
     struct termios old_term, new_term;
     char c;
 
-    /* 現在の設定を得る */
     tcgetattr(STDIN_FILENO, &old_term);
 
-    /* 設定のコピーをつくる */
     new_term = old_term;
-
-    /* 入力文字のエコーを抑止する場合 */
     new_term.c_lflag &= ~(ICANON | ECHO);
-
-    /* エコーは止めない場合 */
     //new_term.c_lflag &= ~(ICANON);
 
-    /* 新しい設定を反映する */
     tcsetattr(STDIN_FILENO, TCSANOW, &new_term);
-
-    /* 1 文字入力 */
     c = getchar();
-
-    /* 古い設定に戻す */
     tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
 
     return c;
@@ -188,11 +177,11 @@ int setup(int ***cell,int mine,int size){
   input=board_sel(CELLINIT,size,0);
 
   int cur=0;
-  for(int i=0;i<XY(size)-2-cur;i++){
-    if(senkei[i]==input) swap(&senkei[i],&senkei[XY(size)-1]);
-    else for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
-     if((input%(size)+k>=0&&input%(size)+k<(size))&&(input/(size)+j>=0&&input/(size)+j<(size)))
-     if(input+k+(j*(size))==senkei[i]){
+  for(int i=0;i<XY(size);i++) if(senkei[i]==input) swap(&senkei[i],&senkei[XY(size)-1]);
+  for(int i=0;i<XY(size)-1-cur;i++){
+    for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
+     if( (input%size+k>=0&&input%size+k<size) && (input/size+j>=0&&input/size+j<size) )
+     if(senkei[i]%size==input%size+k && senkei[i]/size==input/size+j){
       swap(&senkei[i],&senkei[XY(size)-2-cur]);
       cur++;
       i--;

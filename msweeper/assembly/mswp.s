@@ -67,7 +67,7 @@ print_header:
     xorq  %r12, %r12
 
 .ph_loop:
-    ## if col >= board_size -> end
+    ## if x >= board_size -> end
     movq  board_size(%rip), %rbx
     cmpq  %rbx, %r12
     jge   .ph_done
@@ -392,7 +392,7 @@ open_cell:
     jl    .oc_already
     cmpq  %r14, %r13
     jge   .oc_already
-    ## index = row*8 + col
+    ## index = y*8 + x
     movq  %r12, %rbx
     imulq %r14, %rbx
     addq  %r13, %rbx
@@ -440,7 +440,7 @@ open_cell_start:
     jne   .ocs_ret
 
     ## reset DFS stack (elements is managed by rbp)
-    ## stack row*size+col to opcell_stack
+    ## stack y*size+x to opcell_stack
     xorq  %rbp, %rbp
     movq  board_size(%rip), %rax
     imulq %rdi, %rax
@@ -562,8 +562,8 @@ check_clear:
     popq  %rbx
     ret
 
-## call with row number set in rax
-print_rownum:
+## call with y number set in rax
+print_ynum:
     call  print_number
     leaq  msg_space(%rip), %rsi
     call  print_str
@@ -577,7 +577,9 @@ print_cell:
     movq  %r12, %rdi
     movq  %r13, %rsi
     call  count_mines
-    testq %rax, %rax          ## blank if cell's adjacent is 0
+    testq %rax, %rax
+    ## blank if cell's adjacent is 0
+
     jz    .pc_zero
     call  print_number
     jmp   .pc_done
@@ -598,14 +600,14 @@ print_board:
     pushq %r13
     call  print_header
     xorq  %r12, %r12
-.pb_row:
+.pb_y:
     movq  board_size(%rip), %rax
     cmpq  %rax, %r12
     jge   .pb_done
     movq  %r12, %rax
-    call  print_rownum
+    call  print_ynum
     xorq  %r13, %r13
-.pb_col:
+.pb_x:
     movq  board_size(%rip), %rax
     cmpq  %rax, %r13
     jge   .pb_eol
@@ -614,7 +616,7 @@ print_board:
     imulq %rax, %rbx
     addq  %r13, %rbx
     call  print_cell
-    ## space except for the last column
+    ## space except for the last x
     movq board_size(%rip), %rax
     decq %rax
     cmpq %rax, %r13
@@ -623,12 +625,12 @@ print_board:
     call  print_str
 .pb_nosp:
     incq  %r13
-    jmp   .pb_col
+    jmp   .pb_x
 .pb_eol:
     leaq  msg_newline(%rip), %rsi
     call  print_str
     incq  %r12
-    jmp   .pb_row
+    jmp   .pb_y
 .pb_done:
     popq  %r13
     popq  %r12
@@ -651,7 +653,7 @@ read_input:
     cmpq  $3, %rax
     jl    .ri_fail
 
-    ## row
+    ## y
     movzbq input_buf(%rip), %rax
     call   char_base36
     cmpq   $-1, %rax
@@ -659,7 +661,7 @@ read_input:
 
     movq   %rax, %rbx
 
-    ## col
+    ## x
     movzbq input_buf+1(%rip), %rax
     call   char_base36
     cmpq   $-1, %rax
@@ -902,22 +904,22 @@ finish_game:
     call   print_header
     xorq   %r12, %r12
 
-.fg_row:
+.fg_y:
     movq   board_size(%rip), %rax
     cmpq   %rax, %r12
     jge    .fg_done
 
     movq   %r12, %rax
-    call   print_rownum
+    call   print_ynum
 
     xorq   %r13, %r13
 
-.fg_col:
+.fg_x:
     movq   board_size(%rip), %rax
     cmpq   %rax, %r13
     jge    .fg_eol
 
-    ## index = row*size + col
+    ## index = y*size + x
     movq   %r12, %rbx
     movq   board_size(%rip), %rax
     imulq  %rax, %rbx
@@ -930,7 +932,9 @@ finish_game:
     movq   %r12, %rdi
     movq   %r13, %rsi
     call   count_mines
-    testq  %rax, %rax         ## blank if cell's adjecent is 0
+    testq  %rax, %rax
+    ## blank if cell's adjecent is 0
+
     jz     .fg_zero
     call   print_number
     jmp    .fg_spcheck
@@ -954,13 +958,13 @@ finish_game:
 
 .fg_nosp:
     incq   %r13
-    jmp    .fg_col
+    jmp    .fg_x
 
 .fg_eol:
     leaq   msg_newline(%rip), %rsi
     call   print_str
     incq   %r12
-    jmp    .fg_row
+    jmp    .fg_y
 
 .fg_done:
     popq   %r13
