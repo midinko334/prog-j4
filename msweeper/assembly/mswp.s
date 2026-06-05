@@ -933,7 +933,7 @@ finish_game:
     movq   %r13, %rsi
     call   count_mines
     testq  %rax, %rax
-    ## blank if cell's adjecent is 0
+    ## blank if cell's adjacent is 0
 
     jz     .fg_zero
     call   print_number
