@@ -9,5 +9,8 @@ compile: $(MSWP)
 	$(LD) -o a.out $*.o
 	rm $*.o
 
+run:
+	./a.out
+
 clean:
 	rm -f *.o *.out
