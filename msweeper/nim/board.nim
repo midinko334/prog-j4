@@ -12,7 +12,7 @@ type
     content*: cell_content
     mark*: cell_mark
     opened*: bool
-    adjacent_mines*: int
+    near_mines*: int
 
   gstatus* = enum
     gs_playing, gs_cleared, gs_exploded
@@ -44,22 +44,25 @@ proc new_board*(size, mine_count: int): board =
   result.mine_count = mine_count
   result.cells = newSeq[cell](size * size)
   for c in result.cells.mitems:
-    c = cell(content: ccsafe, mark: cmN, opened: false, adjacent_mines: 0)
+    c = cell(content: ccsafe, mark: cmN, opened: false, near_mines: 0)
   result.state = gs_playing
   result.fc_done = false
 
-proc place_mines*(b: var board, safe_x, safe_y: int) =
-  var forbidden: seq[int] = @[b.idx(safe_x, safe_y)]
-  for (nx, ny) in b.neighbors(safe_x, safe_y):
-    forbidden.add b.idx(nx, ny)
+proc setup*(b: var board, x, y: int) =
 
-  var candidates = toSeq(0 ..< b.cells.len).filterIt(it notin forbidden)
-  candidates.shuffle()
+  var nearclick: seq[int]
+  for (nx, ny) in b.neighbors(x, y):
+    nearclick.add b.idx(nx, ny)
+  nearclick.add b.idx(x, y)
+ 
+  var senkei = toSeq(0 ..< b.cells.len).filterIt(it notin nearclick)
+  senkei.shuffle()
+  senkei = senkei & nearclick
+ 
+  for i in 0 ..< min(b.mine_count, senkei.len):
+    b.cells[senkei[i]].content = cc_mine
 
-  for i in 0 ..< min(b.mine_count, candidates.len):
-    b.cells[candidates[i]].content = ccmine
-
-proc count_adjacent_mines(b: board, x, y: int): int =
+proc count_nearmines(b: board, x, y: int): int =
   result = 0
   for (nx, ny) in b.neighbors(x, y):
     if b.cells[b.idx(nx, ny)].content == ccmine:
@@ -76,8 +79,8 @@ proc open_cell*(b: var board, x, y: int) =
     return
 
   b.cells[i].opened = true
-  let count = b.count_adjacent_mines(x, y)
-  b.cells[i].adjacent_mines = count
+  let count = b.count_nearmines(x, y)
+  b.cells[i].near_mines = count
 
   if count == 0:
     for (nx, ny) in b.neighbors(x, y):
@@ -88,7 +91,7 @@ proc open_cell*(b: var board, x, y: int) =
 proc opencell_near*(b: var board, x, y: int) =
   let i = b.idx(x, y)
   if not b.cells[i].opened: return
-  let num = b.cells[i].adjacent_mines
+  let num = b.cells[i].near_mines
   if num == 0: return
 
   var mark_count = 0
@@ -129,5 +132,5 @@ proc fg_opencell*(b: var board) =
     for x in 0 ..< b.size:
       let i = b.idx(x, y)
       if b.cells[i].content == ccsafe and not b.cells[i].opened:
-        b.cells[i].adjacent_mines = b.count_adjacent_mines(x, y)
+        b.cells[i].near_mines = b.count_near_mines(x, y)
       b.cells[i].opened = true

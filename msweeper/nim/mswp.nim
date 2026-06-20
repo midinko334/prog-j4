@@ -103,9 +103,9 @@ proc board_print(control: Control, game_status: App_status) =
       elif cell.opened and cell.content == ccmine:
         canvas.textColor = rgb(0, 0, 0)
         canvas.drawTextCentered("*", rx, ry, cellpx, cellpx)
-      elif cell.opened and cell.adjacent_mines > 0:
-        canvas.textColor = NumberColors[cell.adjacent_mines]
-        canvas.drawTextCentered($cell.adjacent_mines, rx, ry, cellpx, cellpx)
+      elif cell.opened and cell.near_mines > 0:
+        canvas.textColor = NumberColors[cell.near_mines]
+        canvas.drawTextCentered($cell.near_mines, rx, ry, cellpx, cellpx)
       elif not cell.opened:
         case cell.mark
         of cmmark:
@@ -136,7 +136,7 @@ proc input_click(control: Control, window: Window, event: MouseEvent, game_statu
       game_status.board.opencell_near(x, y)
     else:
       if not game_status.board.fc_done:
-        game_status.board.place_mines(x, y)
+        game_status.board.setup(x, y)
         game_status.board.fc_done = true
       game_status.board.open_cell(x, y)
  
