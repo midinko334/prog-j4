@@ -82,8 +82,10 @@ proc board_print(control: Control, game_status: App_status) =
  
       if cell.opened:
         canvas.areaColor =
-          if cell.content == ccmine and cell.mark != cmmark: rgb(255, 95, 95)
-          elif cell.content == ccsafe and cell.mark == cmmark: rgb(255, 95, 95)
+          if game_status.board.state == gs_exploded:
+            if cell.content == ccmine and cell.mark != cmmark: rgb(255, 95, 95)
+            elif cell.content == ccsafe and cell.mark == cmmark: rgb(255, 95, 95)
+            else: rgb(222, 222, 222)
           else: rgb(222, 222, 222)
       else:
         canvas.areaColor = rgb(191, 191, 191)
@@ -144,6 +146,7 @@ proc input_click(control: Control, window: Window, event: MouseEvent, game_statu
     game_status.board.fg_opencell()
   elif game_status.board.check_clear():
     game_status.board.state = gs_cleared
+    game_status.board.fg_opencell()
  
   control.forceRedraw()
   title_print(window, game_status)

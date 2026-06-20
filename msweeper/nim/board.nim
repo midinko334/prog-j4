@@ -1,5 +1,6 @@
 import std/random
 import std/sequtils
+randomize()
 
 type
   cell_content* = enum
