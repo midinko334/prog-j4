@@ -206,7 +206,7 @@ int setup(int ***cell,int mine,int size){
 
 }
 
-void game_start(){
+int main(){
   int size=0,mine=0;
   int c,**cell;
   printf("=== M Sweeper ===\n");
@@ -227,11 +227,6 @@ void game_start(){
   gameloop(cell,size,sttxy);
   for(int i=0;i<size;i++) free(cell[i]);
   free(cell);
-
-}
-
-int main(){
-  game_start();
-
   return 0;
+
 }
