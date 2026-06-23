@@ -134,16 +134,10 @@ proc board_print(control: Control, game_status: App_status, restartflag: int) =
     canvas.textColor = rgb(0, 127, 0)
     canvas.drawTextCentered("Restart", 0, (game.size+1)*cellpx, cellpx*4, cellpx)
 
-  let time =
-    if game_status.board.fc_done and game_status.board.state == gs_playing:
-      epochTime() - game_status.startime
-    elif game_status.board.state != gs_playing and game_status.board.fc_done:
-      game_status.endtime - game_status.startime
-    else:
-      0.0
-  let timestr = formatFloat(time, ffDecimal, 1)
-
-  canvas.drawTextCentered($timestr & "s", 6*cellpx, (game.size+1)*cellpx, cellpx, cellpx)
+  if game_status.board.state != gsPlaying:
+    let time = game_status.endtime - game_status.startime
+    let timestr = formatFloat(time, ffDecimal, 1)
+    canvas.drawTextCentered($timestr & "s", 6*cellpx, (game.size+1)*cellpx, cellpx, cellpx)
 
 proc input_click(control: Control, window: Window, event: MouseEvent, game_status: var App_status, restartflag: var int) =
   let cellpx = game_status.cellpx
@@ -205,8 +199,8 @@ proc main() =
   app.init()
  
   var window = newWindow("Msweeper")
-  window.width = game_status.board.size * game_status.cellpx
-  window.height = game_status.board.size * game_status.cellpx + 2 * game_status.cellpx
+  window.width = game_status.board.size * game_status.cellpx + 16
+  window.height = game_status.board.size * game_status.cellpx + 2 * game_status.cellpx + 40
  
   var board_control = new_control()
   board_control.width = game_status.board.size * game_status.cellpx
@@ -217,11 +211,6 @@ proc main() =
  
   board_control.onMouseButtonUp = proc(event: MouseEvent) =
     input_click(board_control, window, event, game_status, restartflag)
-
-  startRepeatingTimer(200, proc(event: TimerEvent) =
-    if game_status.board.fc_done and game_status.board.state == gs_playing:
-      board_control.forceRedraw()
-  )
  
   window.add(board_control)
   window.show()
