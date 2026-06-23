@@ -61,7 +61,7 @@ proc setup*(b: var board, x, y: int) =
   senkei = senkei & nearclick
  
   for i in 0 ..< min(b.mine_count, senkei.len):
-    b.cells[senkei[i]].content = cc_mine
+    b.cells[senkei[i]].content = ccmine
 
 proc count_nearmines(b: board, x, y: int): int =
   result = 0
@@ -133,5 +133,5 @@ proc fg_opencell*(b: var board) =
     for x in 0 ..< b.size:
       let i = b.idx(x, y)
       if b.cells[i].content == ccsafe and not b.cells[i].opened:
-        b.cells[i].near_mines = b.count_near_mines(x, y)
+        b.cells[i].near_mines = b.count_nearmines(x, y)
       b.cells[i].opened = true

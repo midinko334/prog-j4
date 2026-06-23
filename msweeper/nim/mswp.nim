@@ -1,4 +1,5 @@
 import std/strutils
+import std/times
 import nigui
 import board
 
@@ -6,14 +7,14 @@ const
   CELLPXMAX = 32
   CELLPXMIN = 12
   WINDOWPXMAX = 800
-  BOARDSIZEMAX = 50
+  BOARDSIZEMAX = 35
   NumberColors = [
     rgb(0, 0, 0),        # 0
-    rgb(0, 0, 255),      # 1
+    rgb(0, 0, 192),      # 1
     rgb(0, 127, 127),    # 2
-    rgb(0, 255, 0),      # 3
+    rgb(0, 192, 0),      # 3
     rgb(127, 127, 0),    # 4
-    rgb(255, 0, 0),      # 5
+    rgb(192, 0, 0),      # 5
     rgb(255, 0, 255),    # 6
     rgb(0, 0, 0),        # 7
     rgb(127, 127, 127),  # 8
@@ -23,6 +24,8 @@ type
   App_status=object
     board: board
     cellpx: int
+    startime: float
+    endtime: float
 
 proc XY(size: int): int = size*size
 
@@ -66,7 +69,7 @@ proc title_print(window: Window, game_status: App_status) =
   of gs_cleared:
     window.title = "*** GAME CLEAR ***"
 
-proc board_print(control: Control, game_status: App_status) =
+proc board_print(control: Control, game_status: App_status, restartflag: int) =
   let cellpx = game_status.cellpx
   let canvas = control.canvas
   let game = game_status.board
@@ -119,18 +122,54 @@ proc board_print(control: Control, game_status: App_status) =
         of cmN:
           discard
 
-proc input_click(control: Control, window: Window, event: MouseEvent, game_status: var App_status) =
-  if game_status.board.state != gs_playing:
-    return
+  canvas.drawRectArea(0, (game.size+1)*cellpx, cellpx*4, cellpx)
+  canvas.lineColor = rgb(127, 127, 127)
+  canvas.drawRectOutline(0, (game.size+1)*cellpx, cellpx*4, cellpx)
+  canvas.fontSize = 20
+  
+  if restartflag==1:
+    canvas.textColor = rgb(255, 0, 0)
+    canvas.drawTextCentered("Are You Sure?", 0, (game.size+1)*cellpx, cellpx*4, cellpx)
+  else:
+    canvas.textColor = rgb(0, 127, 0)
+    canvas.drawTextCentered("Restart", 0, (game.size+1)*cellpx, cellpx*4, cellpx)
 
+  let time =
+    if game_status.board.fc_done and game_status.board.state == gs_playing:
+      epochTime() - game_status.startime
+    elif game_status.board.state != gs_playing and game_status.board.fc_done:
+      game_status.endtime - game_status.startime
+    else:
+      0.0
+  let timestr = formatFloat(time, ffDecimal, 1)
+
+  canvas.drawTextCentered($timestr & "s", 6*cellpx, (game.size+1)*cellpx, cellpx, cellpx)
+
+proc input_click(control: Control, window: Window, event: MouseEvent, game_status: var App_status, restartflag: var int) =
   let cellpx = game_status.cellpx
   let x = event.x div cellpx
   let y = event.y div cellpx
-  if not game_status.board.in_bounds(x, y):
+  let game = game_status.board
+ 
+  if event.button == MouseButton_Left and x in 0..3 and y == game.size + 1:
+    if restartflag == 1:
+      game_status.board = new_board(game.size, game.mine_count)
+      restartflag = 0
+    else:
+      restartflag = 1
+    control.forceRedraw()
+    title_print(window, game_status)
     return
- 
+
+  if game_status.board.state != gsPlaying:
+    restartflag = 0
+    return
+  if not game_status.board.inBounds(x, y):
+    restartflag = 0
+    return
+
   let i = game_status.board.idx(x, y)
- 
+
   if event.button == MouseButton_Right:
     game_status.board.toggle_mark(x, y)
   elif event.button == MouseButton_Left:
@@ -139,39 +178,50 @@ proc input_click(control: Control, window: Window, event: MouseEvent, game_statu
     else:
       if not game_status.board.fc_done:
         game_status.board.setup(x, y)
+        game_status.startime = epochTime()
         game_status.board.fc_done = true
       game_status.board.open_cell(x, y)
  
   if game_status.board.state == gs_exploded:
     game_status.board.fg_opencell()
+    game_status.endtime = epochTime()
   elif game_status.board.check_clear():
     game_status.board.state = gs_cleared
     game_status.board.fg_opencell()
+    game_status.endtime = epochTime()
  
+  restartflag=0
   control.forceRedraw()
   title_print(window, game_status)
 
+
 proc main() =
   var game_status: App_status
+  var restartflag = 0
 
   let (size, mine) = game_start()
   game_status = App_status(board: new_board(size, mine), cellpx: getcellpx(size))
  
   app.init()
  
-  var window = new_window("Msweeper")
-  window.width = game_status.board.size * game_status.cellpx + 16
-  window.height = game_status.board.size * game_status.cellpx + 40
+  var window = newWindow("Msweeper")
+  window.width = game_status.board.size * game_status.cellpx
+  window.height = game_status.board.size * game_status.cellpx + 2 * game_status.cellpx
  
   var board_control = new_control()
   board_control.width = game_status.board.size * game_status.cellpx
-  board_control.height = game_status.board.size * game_status.cellpx
+  board_control.height = game_status.board.size * game_status.cellpx + 2 * game_status.cellpx
  
-  board_control.on_draw = proc(event: DrawEvent) =
-    board_print(board_control, game_status)
+  board_control.onDraw = proc(event: DrawEvent) =
+    board_print(board_control, game_status, restartflag)
  
-  board_control.on_mouse_button_up = proc(event: MouseEvent) =
-    input_click(board_control, window, event, game_status)
+  board_control.onMouseButtonUp = proc(event: MouseEvent) =
+    input_click(board_control, window, event, game_status, restartflag)
+
+  startRepeatingTimer(200, proc(event: TimerEvent) =
+    if game_status.board.fc_done and game_status.board.state == gs_playing:
+      board_control.forceRedraw()
+  )
  
   window.add(board_control)
   window.show()
