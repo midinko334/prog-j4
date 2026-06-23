@@ -159,7 +159,7 @@ proc main() =
  
   app.init()
  
-  var window = new_window("Nim Minesweeper")
+  var window = new_window("Msweeper")
   window.width = game_status.board.size * game_status.cellpx + 16
   window.height = game_status.board.size * game_status.cellpx + 40
  
