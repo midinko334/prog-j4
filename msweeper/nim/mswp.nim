@@ -60,7 +60,7 @@ proc game_start(): tuple[size, mine: int] =
 proc title_print(window: Window, game_status: App_status) =
   case game_status.board.state
   of gs_playing:
-    window.title = "Nim Minesweeper"
+    window.title = "Msweeper"
   of gs_exploded:
     window.title = "*** GAME OVER ***"
   of gs_cleared:
