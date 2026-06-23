@@ -14,16 +14,13 @@ msg_input:   .string "Open (x y) : "
 msg_gameover:.string "*** GAME OVER ***\n"
 msg_clear:   .string "*** GAME CLEAR ***\n"
 msg_already: .string "Already opened. Try again.\n"
-msg_marked:  .string "Already marked. Try again.\n"
 msg_invalid: .string "Invalid input. Try again.\n"
 msg_newline: .string "\n"
 msg_space:   .string " "
 msg_dot:     .string "."
-msg_mark:    .string "M"
 
     .section .bss
 board:       .skip 1500     ## 1=unsafe, 0=safe
-mark:        .skip 1500     ## 1=marked, 0=not
 visible:     .skip 1500     ## 1=opened, 0=unopened
 input_buf:   .skip 16       ## buffer for read()
 num_buf:     .skip 16       ## buffer for read()
@@ -330,87 +327,45 @@ count_mines:
     xorq  %r14, %r14            ## count = 0
     movq  board_size(%rip), %r8
     movq  $-1, %r15
-.cm_dy:
+.cm_dr:
     cmpq  $1, %r15
     jg    .cm_done
     movq  $-1, %rbx
-.cm_dx:
+.cm_dc:
     cmpq  $1, %rbx
-    jg    .cm_dynext
+    jg    .cm_drnext
     testq %r15, %r15
     jnz   .cm_around
     testq %rbx, %rbx
-    jz    .cm_dxnext
+    jz    .cm_dcnext
 .cm_around:
     movq  %r12, %rax
     addq  %r15, %rax
-    js    .cm_dxnext
+    js    .cm_dcnext
     cmpq  %r8, %rax
-    jge   .cm_dxnext
+    jge   .cm_dcnext
     movq  %r13, %rcx
     addq  %rbx, %rcx
-    js    .cm_dxnext
+    js    .cm_dcnext
     cmpq  %r8, %rcx
-    jge   .cm_dxnext
+    jge   .cm_dcnext
     ## index = nr*board_size + nc
     imulq %r8, %rax
     addq  %rcx, %rax
-    leaq  board(%rip),%r9
+    leaq board(%rip),%r9
     cmpb  $1, (%r9,%rax)
-    jne   .cm_dxnext
+    jne   .cm_dcnext
     incq  %r14
-.cm_dxnext:
+.cm_dcnext:
     incq  %rbx
-    jmp   .cm_dx
-.cm_dynext:
+    jmp   .cm_dc
+.cm_drnext:
     incq  %r15
-    jmp   .cm_dy
+    jmp   .cm_dr
 .cm_done:
     movq  %r14, %rax
     popq  %r8
     popq  %r15
-    popq  %r14
-    popq  %r13
-    popq  %r12
-    popq  %rbx
-    ret
-
-mark_cell:
-    pushq %rbx
-    pushq %r12
-    pushq %r13
-    pushq %r14
-    movq  %rdi, %r12
-    movq  %rsi, %r13
-    movq  board_size(%rip), %r14
-
-    ## bounds check
-    cmpq  $0, %r12
-    jl    .mc_done
-    cmpq  %r14, %r12
-    jge   .mc_done
-    cmpq  $0, %r13
-    jl    .mc_done
-    cmpq  %r14, %r13
-    jge   .mc_done
-    ## index = y*boardsize + x
-    movq  %r12, %rbx
-    imulq %r14, %rbx
-    addq  %r13, %rbx
-
-    ## opened check
-    leaq  visible(%rip),%r10
-    cmpb  $1, (%r10,%rbx)
-    je    .mc_done
-
-    ## invert mark
-    leaq  mark(%rip),%r10
-    movb  (%r10,%rbx), %al
-    xorb  $1, %al
-    movb  %al, (%r10,%rbx)
-
-.mc_done:
-    xorq  %rax, %rax
     popq  %r14
     popq  %r13
     popq  %r12
@@ -442,23 +397,18 @@ open_cell:
     imulq %r14, %rbx
     addq  %r13, %rbx
 
-    ## mark check
-    leaq  mark(%rip),%r9
-    cmpb  $1, (%r9,%rbx)
-    je    .oc_marked
-
     ## opened check
-    leaq  visible(%rip),%r10
+    leaq visible(%rip),%r10
     cmpb  $1, (%r10,%rbx)
     je    .oc_already
 
     ## mine check
-    leaq  board(%rip),%r9
+    leaq board(%rip),%r9
     cmpb  $1, (%r9,%rbx)
     je    .oc_mine
 
     ## safe -> reveal
-    leaq  visible(%rip),%r10
+    leaq visible(%rip),%r10
     movb  $1, (%r10,%rbx)
     xorq  %rax, %rax
     jmp   .oc_done
@@ -467,9 +417,6 @@ open_cell:
     jmp   .oc_done
 .oc_already:
     movq  $2, %rax
-    jmp   .oc_done
-.oc_marked:
-    movq  $3, %rax
 .oc_done:
     popq  %r14
     popq  %r13
@@ -523,55 +470,55 @@ open_cell_start:
     jnz   .ocs_loop
 
     movq  $-1, %r8
-.ocs_dy:
+.ocs_dr:
     cmpq  $1, %r8
     jg    .ocs_loop
 
     movq  $-1, %r9
-.ocs_dx:
+.ocs_dc:
     cmpq  $1, %r9
-    jg    .ocs_dynext
+    jg    .ocs_drnext
 
     ## center skip
     testq %r8, %r8
     jnz   .ocs_around
     testq %r9, %r9
-    jz    .ocs_dxnext
+    jz    .ocs_dcnext
 .ocs_around:
-    ## nr = r13 + dy
+    ## nr = r13 + dr
     movq  %r13, %rax
     addq  %r8, %rax
-    js    .ocs_dxnext
+    js    .ocs_dcnext
     movq  board_size(%rip), %rbx
     cmpq  %rbx, %rax
-    jge   .ocs_dxnext
+    jge   .ocs_dcnext
 
     movq  %r14, %rcx
     addq  %r9, %rcx
-    js    .ocs_dxnext
+    js    .ocs_dcnext
     cmpq  %rbx, %rcx
-    jge   .ocs_dxnext
+    jge   .ocs_dcnext
     ## skip if it already is opened
     imulq %rbx, %rax
     addq  %rcx, %rax
     leaq  visible(%rip), %r10
     cmpb  $1, (%r10,%rax)
-    je    .ocs_dxnext
+    je    .ocs_dcnext
     ## skip if its mine
     leaq  board(%rip), %r11
     cmpb  $1, (%r11,%rax)
-    je    .ocs_dxnext
+    je    .ocs_dcnext
 
     movb  $1, (%r10,%rax)
     movq  %rax, (%r15,%rbp,8)
     incq  %rbp
 
-.ocs_dxnext:
+.ocs_dcnext:
     incq  %r9
-    jmp   .ocs_dx
-.ocs_dynext:
+    jmp   .ocs_dc
+.ocs_drnext:
     incq  %r8
-    jmp   .ocs_dy
+    jmp   .ocs_dr
 
 .ocs_done:
     xorq  %rax, %rax
@@ -624,27 +571,17 @@ print_ynum:
 
 ## r12=y, r13=x, rbx=index
 print_cell:
-    pushq %r11
-
-    leaq  mark(%rip),%r11
-    cmpb  $1, (%r11,%rbx)
-    je    .pc_mark
-
     leaq  visible(%rip),%r10
     cmpb  $1, (%r10,%rbx)
     jne   .pc_hidden
-
     movq  %r12, %rdi
     movq  %r13, %rsi
     call  count_mines
     testq %rax, %rax
     ## blank if cell's adjacent is 0
+
     jz    .pc_zero
     call  print_number
-    jmp   .pc_done
-.pc_mark:
-    movb  $'M', %al
-    call  print_char
     jmp   .pc_done
 .pc_zero:
     movb  $' ', %al
@@ -654,7 +591,6 @@ print_cell:
     leaq  msg_dot(%rip), %rsi
     call  print_str
 .pc_done:
-    popq  %r11
     ret
 
 ## display the entire board
@@ -676,14 +612,14 @@ print_board:
     cmpq  %rax, %r13
     jge   .pb_eol
     movq  %r12, %rbx
-    movq  board_size(%rip), %rax
+    movq board_size(%rip), %rax
     imulq %rax, %rbx
     addq  %r13, %rbx
     call  print_cell
     ## space except for the last x
-    movq  board_size(%rip), %rax
-    decq  %rax
-    cmpq  %rax, %r13
+    movq board_size(%rip), %rax
+    decq %rax
+    cmpq %rax, %r13
     je    .pb_nosp
     leaq  msg_space(%rip), %rsi
     call  print_str
@@ -701,11 +637,11 @@ print_board:
     popq  %rbx
     ret
 
-## rbx(xmax-x), rax(ymax-y), rcx(mark or not)
+## rax(xmax-x), rbx(ymax-y)
 ## failed -> rax=-1
 
 read_input:
-    pushq %rdx
+    pushq %rcx
 
     ## read
     movq  $SYS_READ, %rax
@@ -717,16 +653,7 @@ read_input:
     cmpq  $3, %rax
     jl    .ri_fail
 
-    cmpq  $4, %rax
-    jl    .ri_notm
-
-    ## mark or not
-    movzbq input_buf+2(%rip), %rax
-    call   char_mark
-    movq   %rax, %rcx
-
-.ri_notm:
-    ## x
+    ## y
     movzbq input_buf(%rip), %rax
     call   char_base36
     cmpq   $-1, %rax
@@ -734,77 +661,65 @@ read_input:
 
     movq   %rax, %rbx
 
-    ## y
+    ## x
     movzbq input_buf+1(%rip), %rax
     call   char_base36
     cmpq   $-1, %rax
     je     .ri_fail
 
     ## range check
-    movq  board_size(%rip), %rdx
+    movq  board_size(%rip), %rcx
 
-    cmpq  %rdx, %rax
+    cmpq  %rcx, %rax
     jge   .ri_fail
 
-    cmpq  %rdx, %rbx
+    cmpq  %rcx, %rbx
     jge   .ri_fail
 
-    popq  %rdx
+    popq  %rcx
     ret
 
 .ri_fail:
-    movq  $-1, %rax
-    popq  %rdx
+    movq $-1, %rax
+    popq %rcx
     ret
 
 ## input: al
 ## output: rax
 ## failed: -1
 
-char_mark:
-    cmpb $'m', %al
-    je .chm_done
-    cmpb $'M', %al
-    je .chm_done
-.chm_fail:
-    movq $0, %rax
-    ret
-.chm_done:
-    movq $1, %rax
-    ret
-
 char_base36:
-    ## '0'~'9'
+    ## '0'-'9'
     cmpb $'0', %al
-    jl .cb_upper
+    jl .ctb_upper
     cmpb $'9', %al
-    jg .cb_upper
+    jg .ctb_upper
 
     movzbq %al, %rax
     subq $'0', %rax
     ret
 
-.cb_upper:
+.ctb_upper:
     cmpb $'A', %al
-    jl .cb_lower
+    jl .ctb_lower
     cmpb $'Z', %al
-    jg .cb_lower
+    jg .ctb_lower
 
     movzbq %al, %rax
     subq $('A' - 10), %rax
     ret
 
-.cb_lower:
+.ctb_lower:
     cmpb $'a', %al
-    jl .cb_fail
+    jl .ctb_fail
     cmpb $'z', %al
-    jg .cb_fail
+    jg .ctb_fail
 
     movzbq %al, %rax
     subq $('a' - 10), %rax
     ret
 
-.cb_fail:
+.ctb_fail:
     movq $-1, %rax
     ret
 
@@ -862,10 +777,8 @@ read_number:
 
 game_loop:
     pushq %rbx
-    pushq %rcx
     pushq %r12
     pushq %r13
-    pushq %r14
 
 .gl_loop:
     call  print_board
@@ -876,17 +789,8 @@ game_loop:
     je    .gl_invalid
     movq  %rax, %r12
     movq  %rbx, %r13
-    movq  %rcx, %r14
     movq  %r12, %rdi
     movq  %r13, %rsi
-    cmpq  $1, %r14
-    jne   .gl_notm
-
-.gl_mark:
-    call  mark_cell
-    jmp   .gl_check
-
-.gl_notm:
     call  open_cell_start
 
     cmpq  $0, fcl_done(%rip)
@@ -910,8 +814,6 @@ game_loop:
     je    .gl_gameover
     cmpq  $2, %rax
     je    .gl_already
-    cmpq  $3, %rax
-    je    .gl_marked
     call  check_clear
     cmpq  $1, %rax
     je    .gl_clear
@@ -925,21 +827,17 @@ game_loop:
     call  print_str
     jmp   .gl_loop
 .gl_gameover:
+    call  print_board
     leaq  msg_gameover(%rip), %rsi
     call  print_str
     jmp   .gl_ret
-.gl_marked:
-    leaq  msg_marked(%rip), %rsi
-    call  print_str
-    jmp   .gl_loop
 .gl_clear:
+    call  print_board
     leaq  msg_clear(%rip), %rsi
     call  print_str
 .gl_ret:
-    popq  %r14
     popq  %r13
     popq  %r12
-    popq  %rcx
     popq  %rbx
     ret
 
@@ -1087,3 +985,4 @@ _start:
     movq  $SYS_EXIT, %rax
     xorq  %rdi, %rdi
     syscall
+
