@@ -122,6 +122,8 @@ proc board_print(control: Control, game_status: App_status, restartflag: int) =
         of cmN:
           discard
 
+  canvas.areaColor = rgb(191, 191, 191)
+ 
   canvas.drawRectArea(0, (game.size+1)*cellpx, cellpx*4, cellpx)
   canvas.lineColor = rgb(127, 127, 127)
   canvas.drawRectOutline(0, (game.size+1)*cellpx, cellpx*4, cellpx)
@@ -134,6 +136,7 @@ proc board_print(control: Control, game_status: App_status, restartflag: int) =
     canvas.textColor = rgb(0, 127, 0)
     canvas.drawTextCentered("Restart", 0, (game.size+1)*cellpx, cellpx*4, cellpx)
 
+  canvas.textColor = rgb(0, 0, 0)
   if game_status.board.state != gsPlaying:
     let time = game_status.endtime - game_status.startime
     let timestr = formatFloat(time, ffDecimal, 1)
