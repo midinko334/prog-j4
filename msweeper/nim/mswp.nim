@@ -7,7 +7,7 @@ const
   CELLPXMAX = 32
   CELLPXMIN = 12
   WINDOWPXMAX = 800
-  BOARDSIZEMAX = 35
+  BOARDSIZEMAX = 40
   NumberColors = [
     rgb(0, 0, 0),        # 0
     rgb(0, 0, 192),      # 1
