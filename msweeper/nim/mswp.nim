@@ -129,18 +129,19 @@ proc board_print(control: Control, game_status: App_status, restartflag: int) =
   canvas.drawRectOutline(0, (game.size+1)*cellpx, cellpx*4, cellpx)
   canvas.fontSize = 20
   
-  if restartflag==1:
+  if game_status.board.state != gsPlaying:
+    canvas.textColor = rgb(0, 0, 0)
+    let time = game_status.endtime - game_status.startime
+    let timestr = formatFloat(time, ffDecimal, 1)
+    canvas.drawTextCentered($timestr & "s", 6*cellpx, (game.size+1)*cellpx, cellpx, cellpx)
+    canvas.textColor = rgb(0, 0, 127)
+    canvas.drawTextCentered("Restart", 0, (game.size+1)*cellpx, cellpx*4, cellpx)    
+  elif restartflag==1:
     canvas.textColor = rgb(255, 0, 0)
     canvas.drawTextCentered("Are You Sure?", 0, (game.size+1)*cellpx, cellpx*4, cellpx)
   else:
     canvas.textColor = rgb(0, 127, 0)
     canvas.drawTextCentered("Restart", 0, (game.size+1)*cellpx, cellpx*4, cellpx)
-
-  canvas.textColor = rgb(0, 0, 0)
-  if game_status.board.state != gsPlaying:
-    let time = game_status.endtime - game_status.startime
-    let timestr = formatFloat(time, ffDecimal, 1)
-    canvas.drawTextCentered($timestr & "s", 6*cellpx, (game.size+1)*cellpx, cellpx, cellpx)
 
 proc input_click(control: Control, window: Window, event: MouseEvent, game_status: var App_status, restartflag: var int) =
   let cellpx = game_status.cellpx
@@ -159,7 +160,7 @@ proc input_click(control: Control, window: Window, event: MouseEvent, game_statu
     return
 
   if game_status.board.state != gsPlaying:
-    restartflag = 0
+    restartflag = 1
     return
   if not game_status.board.inBounds(x, y):
     restartflag = 0
@@ -167,6 +168,7 @@ proc input_click(control: Control, window: Window, event: MouseEvent, game_statu
 
   let i = game_status.board.idx(x, y)
 
+  restartflag=0
   if event.button == MouseButton_Right:
     game_status.board.toggle_mark(x, y)
   elif event.button == MouseButton_Left:
@@ -182,12 +184,13 @@ proc input_click(control: Control, window: Window, event: MouseEvent, game_statu
   if game_status.board.state == gs_exploded:
     game_status.board.fg_opencell()
     game_status.endtime = epochTime()
+    restartflag=1
   elif game_status.board.check_clear():
     game_status.board.state = gs_cleared
     game_status.board.fg_opencell()
     game_status.endtime = epochTime()
+    restartflag=1
  
-  restartflag=0
   control.forceRedraw()
   title_print(window, game_status)
 

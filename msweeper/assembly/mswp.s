@@ -19,11 +19,11 @@ msg_invalid: .string "Invalid input. Try again.\n"
 msg_newline: .string "\n"
 msg_space:   .string " "
 msg_dot:     .string "."
-msg_mark:    .string "M"
 
     .section .bss
 board:       .skip 1500     ## 1=unsafe, 0=safe
 mark:        .skip 1500     ## 1=marked, 0=not
+Q:           .skip 1500     ## 1=marked, 0=not
 visible:     .skip 1500     ## 1=opened, 0=unopened
 input_buf:   .skip 16       ## buffer for read()
 num_buf:     .skip 16       ## buffer for read()
@@ -417,6 +417,48 @@ mark_cell:
     popq  %rbx
     ret
 
+Q_cell:
+    pushq %rbx
+    pushq %r12
+    pushq %r13
+    pushq %r14
+    movq  %rdi, %r12
+    movq  %rsi, %r13
+    movq  board_size(%rip), %r14
+
+    ## bounds check
+    cmpq  $0, %r12
+    jl    .q_done
+    cmpq  %r14, %r12
+    jge   .q_done
+    cmpq  $0, %r13
+    jl    .q_done
+    cmpq  %r14, %r13
+    jge   .q_done
+    ## index = y*boardsize + x
+    movq  %r12, %rbx
+    imulq %r14, %rbx
+    addq  %r13, %rbx
+
+    ## opened check
+    leaq  visible(%rip),%r10
+    cmpb  $1, (%r10,%rbx)
+    je    .q_done
+
+    ## invert mark
+    leaq  Q(%rip),%r10
+    movb  (%r10,%rbx), %al
+    xorb  $1, %al
+    movb  %al, (%r10,%rbx)
+
+.q_done:
+    xorq  %rax, %rax
+    popq  %r14
+    popq  %r13
+    popq  %r12
+    popq  %rbx
+    ret
+
 ## rdi=y, rsi=x → rax
 ## 0: safe  1: unsafe  2: except
 open_cell:
@@ -630,6 +672,10 @@ print_cell:
     cmpb  $1, (%r11,%rbx)
     je    .pc_mark
 
+    leaq  Q(%rip),%r11
+    cmpb  $1, (%r11,%rbx)
+    je    .pc_Q
+
     leaq  visible(%rip),%r10
     cmpb  $1, (%r10,%rbx)
     jne   .pc_hidden
@@ -644,6 +690,10 @@ print_cell:
     jmp   .pc_done
 .pc_mark:
     movb  $'M', %al
+    call  print_char
+    jmp   .pc_done
+.pc_Q:
+    movb  $'?', %al
     call  print_char
     jmp   .pc_done
 .pc_zero:
@@ -701,11 +751,45 @@ print_board:
     popq  %rbx
     ret
 
+deletespace:
+    pushq %rcx
+    pushq %rdx
+    pushq %rsi
+    pushq %rdi
+
+    leaq  input_buf(%rip), %rdi
+    movq  %rax, %rcx
+    xorq  %rsi, %rsi
+    xorq  %rdx, %rdx
+
+.ds_loop:
+    cmpq  %rcx, %rsi
+    jge   .ds_done
+
+    movb  (%rdi,%rsi), %al
+    cmpb  $' ', %al
+    je    .ds_skip
+
+    movb  %al, (%rdi,%rdx)
+    addq  $1, %rdx
+
+.ds_skip:
+    addq  $1, %rsi
+    jmp   .ds_loop
+
+.ds_done:
+    movq  %rdx, %rax
+
+    popq  %rdi
+    popq  %rsi
+    popq  %rdx
+    popq  %rcx
+    ret
+
 ## rbx(xmax-x), rax(ymax-y), rcx(mark or not)
 ## failed -> rax=-1
-
 read_input:
-    pushq %rdx
+     pushq %rdx
 
     ## read
     movq  $SYS_READ, %rax
@@ -714,13 +798,15 @@ read_input:
     movq  $15, %rdx
     syscall
 
+    call  deletespace
+
     cmpq  $3, %rax
     jl    .ri_fail
 
     cmpq  $4, %rax
     jl    .ri_notm
 
-    ## mark or not
+    ## mark or q or not
     movzbq input_buf+2(%rip), %rax
     call   char_mark
     movq   %rax, %rcx
@@ -763,14 +849,21 @@ read_input:
 
 char_mark:
     cmpb $'m', %al
-    je .chm_done
+    je .chm_mark
     cmpb $'M', %al
-    je .chm_done
+    je .chm_mark
+    cmpb $'q', %al
+    je .chm_Q
+    cmpb $'Q', %al
+    je .chm_Q
 .chm_fail:
     movq $0, %rax
     ret
-.chm_done:
+.chm_mark:
     movq $1, %rax
+    ret
+.chm_Q:
+    movq $2, %rax
     ret
 
 char_base36:
@@ -880,10 +973,17 @@ game_loop:
     movq  %r12, %rdi
     movq  %r13, %rsi
     cmpq  $1, %r14
-    jne   .gl_notm
+    je    .gl_mark
+    cmpq  $2, %r14
+    je    .gl_Q
+    jmp   .gl_notm
 
 .gl_mark:
     call  mark_cell
+    jmp   .gl_check
+
+.gl_Q:
+    call  Q_cell
     jmp   .gl_check
 
 .gl_notm:
