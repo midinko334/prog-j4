@@ -1,90 +1,7 @@
 import sys
 import os
 import random
-import tty
-import termios
-
-Defword=[
-  "Singularity",
-  "Immolation",
-  "Transfiguration",
-  "Resonance",
-  "Monster",
-  "Toxoplasmosis",
-  "Hippopotomonstrosesquipedaliophobia",
-  "Information",
-  "Relationship",
-  "Communication",
-  "Environment",
-  "Organization",
-  "Understanding",
-  "Performance",
-  "Development",
-  "Infrastructure",
-  "Architecture",
-  "Division",
-  "Collaboration",
-  "Satisfaction",
-  "Professional",
-  "Alternative",
-  "Significant",
-  "Implementation",
-  "Supercalifragilistic",
-  "Recommendation",
-  "Transformation",
-  "Responsibility",
-  "Identification",
-  "Characterization",
-  "Sustainability",
-  "Multiplication",
-  "Experimentation",
-  "Sophistication",
-  "Countermeasures",
-  "Intercontinental",
-  "Telecommunication",
-  "Incomprehensible",
-  "Anhedonia",
-  "Annihilation",
-  "Sabaton",
-  "Restitution",
-  "Eschaton",
-  "Vengeance",
-  "Reincarnation",
-  "Sodium",
-  "Ascendancy",
-  "Fatality",
-  "Halcyon",
-  "Revolution",
-  "Riptide",
-  "Convergence",
-  "Divergence",
-  "Labyrinth",
-  "Distortion",
-  "Destruction",
-  "Quetzalcoatl",
-  "Oblivion",
-  "Stratiformis",
-  "Teleport",
-  "Absolute",
-  "Collapse",
-  "Inferno",
-  "Cataclysm",
-  "Fantasia",
-  "Nullification",
-  "Guardian",
-  "Olympic",
-  "Apocalypse",
-  "Archangel",
-]
-
-Easword=[
-  "Apple",
-  "Banana",
-  "Carrot",
-  "Donut",
-  "Egg",
-  "Fish",
-]
+import defword
 
 CHARTYPES = 64
 LIFE = 7
@@ -125,7 +42,7 @@ def hangman(words: list[str], life: int):
                 print("-", end="")
         print("\n")
 
-        print("Using letter:", ", ".join(used))
+        print("Using letter:", ", ".join(used[1:]))
 
         if flag == -1:
             print()
@@ -193,11 +110,12 @@ def loadfile(filename: str) -> list[str] | None:
         if not line:
             continue
 
-        if line.startswith('"'):
-            end = line.find('"', 1)
-            if end != -1:
-                words.append(line[1:end])
-            continue
+        q1 = line.find('"')
+        if q1 != -1:
+            q2 = line.find('"', q1 + 1)
+            if q2 != -1:
+                words.append(line[q1 + 1:q2])
+                continue
 
         for token in line.split():
             if any(c.isalpha() for c in token):
@@ -249,9 +167,9 @@ def main():
             return
 
         if diff == 0:
-            hangman(Defword, LIFE)
+            hangman(defword.Defword, LIFE)
         elif diff == 1:
-            hangman(Easword, LIFE + 4)
+            hangman(defword.Easword, LIFE + 4)
         else:
             print("Invalid")
 
