@@ -396,12 +396,10 @@ mark_cell:
     movq  %r12, %rbx
     imulq %r14, %rbx
     addq  %r13, %rbx
-
     ## opened check
     leaq  VISIBLE(%rbp),%r10
     cmpb  $1, (%r10,%rbx)
     je    .mc_done
-
     ## invert mark
     leaq  MARK(%rbp),%r10
     movb  (%r10,%rbx), %al
@@ -438,12 +436,10 @@ Q_cell:
     movq  %r12, %rbx
     imulq %r14, %rbx
     addq  %r13, %rbx
-
     ## opened check
     leaq  VISIBLE(%rbp),%r10
     cmpb  $1, (%r10,%rbx)
     je    .q_done
-
     ## invert mark
     leaq  Q(%rbp),%r10
     movb  (%r10,%rbx), %al
@@ -482,22 +478,18 @@ open_cell:
     movq  %r12, %rbx
     imulq %r14, %rbx
     addq  %r13, %rbx
-
     ## mark check
     leaq  MARK(%rbp),%r9
     cmpb  $1, (%r9,%rbx)
     je    .oc_marked
-
     ## opened check
     leaq  VISIBLE(%rbp),%r10
     cmpb  $1, (%r10,%rbx)
     je    .oc_already
-
     ## mine check
     leaq  BOARD(%rbp),%r9
     cmpb  $1, (%r9,%rbx)
     je    .oc_mine
-
     ## safe -> reveal
     leaq  VISIBLE(%rbp),%r10
     movb  $1, (%r10,%rbx)

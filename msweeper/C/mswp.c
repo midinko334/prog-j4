@@ -137,13 +137,10 @@ void gameloop(int **cell,int size,int xy){
 
     xy=board_sel(cell,size,xy);
     if(xy==-1) break;
-
     x=xy%(size);
     y=xy/(size);
 
-    if(cell[y][x]==SAFE||cell[y][x]==QSAFE){
-      opencell(cell,x,y,size);
-    }
+    if(cell[y][x]==SAFE||cell[y][x]==QSAFE) opencell(cell,x,y,size);
     if(cell[y][x]>=1&&cell[y][x]<=8){
       int count=0;
       for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
@@ -168,22 +165,17 @@ void gameloop(int **cell,int size,int xy){
 }
 
 int setup(int ***cell,int mine,int size){
-
   int *senkei;
   srand((unsigned)time(NULL));
-  //0-8:opened -1:mine 9:safe -2:mine(marked) 10:safe(marked) -3:mine(q) 11:safe(q)
   CELLINIT=(int**)malloc(sizeof(int*)*(size));
   for(int i=0;i<size;i++) CELLINIT[i]=(int*)malloc(sizeof(int)*(size));
   senkei=(int*)malloc(sizeof(int)*XY(size));
-
   for(int i=0;i<size;i++) for(int j=0;j<size;j++) CELLINIT[i][j]=SAFE;
   for(int i=0;i<XY(size);i++) senkei[i]=i;
   for(int i=XY(size)-1;i>0;i--) swap(senkei+( rand()%(i+1) ),senkei+i);
 
-  int input;
+  int input,cur=0;
   input=board_sel(CELLINIT,size,0);
-
-  int cur=0;
   for(int i=0;i<XY(size);i++) if(senkei[i]==input) swap(&senkei[i],&senkei[XY(size)-1]);
   for(int i=0;i<XY(size)-1-cur;i++){
     for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
@@ -202,15 +194,12 @@ int setup(int ***cell,int mine,int size){
     y=xy/(size);
     CELLINIT[y][x]=-1;
   }
-
   x=input%(size);
   y=input/(size);
   opencell(CELLINIT,x,y,size);
 
   free(senkei);
-
   return input;
-
 }
 
 int main(){
