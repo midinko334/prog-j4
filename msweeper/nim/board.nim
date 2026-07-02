@@ -58,6 +58,7 @@ proc setup*(b: var board, x, y: int) =
  
   var senkei = toSeq(0 ..< b.cells.len).filterIt(it notin nearclick)
   senkei.shuffle()
+  nearclick.shuffle()
   senkei = senkei & nearclick
  
   for i in 0 ..< min(b.mine_count, senkei.len):
