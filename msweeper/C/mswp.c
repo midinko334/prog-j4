@@ -42,10 +42,7 @@
 
 void swap(int *a,int *b){ int c; c=*a; *a=*b; *b=c; }
 
-int board_sel(int **cell,int size,int xy){
-  char input;
-
-  while(1){
+int board_print(int **cell,int size,int xy){
     printf("\x1b[2J\x1b[H");
     for(int i=0;i<size;i++){
       for(int j=0;j<size;j++){
@@ -63,6 +60,13 @@ int board_sel(int **cell,int size,int xy){
       printf("\n");
     }
     printf("move:wasd, mark:m, question:q, open:space or enter, abort:g\n");
+}
+
+int board_sel(int **cell,int size,int xy){
+  char input;
+
+  while(1){
+    board_print(cell,size,xy);
     input=getChar();
     if(input=='\n'||input==' ') break;
     if(input=='w'&&xy-size>=0) xy-=size;
@@ -137,7 +141,7 @@ void gameloop(int **cell,int size,int xy){
     x=xy%(size);
     y=xy/(size);
 
-    if(cell[y][x]==SAFE){
+    if(cell[y][x]==SAFE||cell[y][x]==QSAFE){
       opencell(cell,x,y,size);
     }
     if(cell[y][x]>=1&&cell[y][x]<=8){
@@ -152,7 +156,7 @@ void gameloop(int **cell,int size,int xy){
       }
       if(finflag==0) break;
     }
-    else if(cell[y][x]==MINE){
+    else if(cell[y][x]==MINE||cell[y][x]==QMINE){
       finflag=0;
       break;
     }
