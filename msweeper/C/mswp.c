@@ -50,11 +50,14 @@ int board_sel(int **cell,int size,int xy){
     for(int i=0;i<size;i++){
       for(int j=0;j<size;j++){
         if(j+(i*size)==xy) printf("\x1b[7m");
-        if(cell[i][j]>0&&cell[i][j]<=8) printf("%d ",cell[i][j]);
-        else if(cell[i][j]==0) printf("  ");
-        else if(cell[i][j]==MSAFE||cell[i][j]==MMINE) printf("M ");
-        else if(cell[i][j]==QSAFE||cell[i][j]==QMINE) printf("? ");
-        else printf(". ");
+        if(cell[i][j]>0&&cell[i][j]<=8) printf("%d",cell[i][j]);
+        else if(cell[i][j]==0) printf(" ");
+        else if(cell[i][j]==MSAFE||cell[i][j]==MMINE) printf("M");
+        else if(cell[i][j]==QSAFE||cell[i][j]==QMINE) printf("?");
+        else printf(".");
+
+        if(j+(i*size)==xy) printf("@");
+        else printf(" ");
         printf("\x1b[0m");
       }
       printf("\n");
