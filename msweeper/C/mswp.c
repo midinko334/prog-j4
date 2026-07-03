@@ -101,6 +101,19 @@ void opencell(int **cell,int x,int y,int size){
    if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size)&&(cell[y+j][x+k]==SAFE||cell[y+j][x+k]==MSAFE||cell[y+j][x+k]==QSAFE)) opencell(cell,x+k,y+j,size);
 }
 
+int opencell_near(int **cell,int x,int y,int size){
+  int count=0;
+  for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
+   if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size))
+   if(cell[y+j][x+k]==MSAFE||cell[y+j][x+k]==QSAFE||cell[y+j][x+k]==MMINE||cell[y+j][x+k]==QMINE) count++;
+  if(count==cell[y][x]) for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
+   if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size)){
+    if(cell[y+j][x+k]==SAFE) opencell(cell,x+k,y+j,size);
+    else if(cell[y+j][x+k]==MINE) return 0;
+  }
+  return 2;
+}
+
 void fg_opencell(int **cell,int x,int y,int size){
   int count=0;
   for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
@@ -142,15 +155,7 @@ void gameloop(int **cell,int size,int xy){
 
     if(cell[y][x]==SAFE||cell[y][x]==QSAFE) opencell(cell,x,y,size);
     if(cell[y][x]>=1&&cell[y][x]<=8){
-      int count=0;
-      for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
-       if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size))
-       if(cell[y+j][x+k]==MSAFE||cell[y+j][x+k]==QSAFE||cell[y+j][x+k]==MMINE||cell[y+j][x+k]==QMINE) count++;
-      if(count==cell[y][x]) for(int j=-1;j<2;j++) for(int k=-1;k<2;k++)
-       if((x+k>=0&&x+k<size)&&(y+j>=0&&y+j<size)){
-        if(cell[y+j][x+k]==SAFE) opencell(cell,x+k,y+j,size);
-        else if(cell[y+j][x+k]==MINE) finflag=0;
-      }
+      finflag=opencell_near(cell,x,y,size);
       if(finflag==0) break;
     }
     else if(cell[y][x]==MINE||cell[y][x]==QMINE){
