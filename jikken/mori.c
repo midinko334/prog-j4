@@ -29,7 +29,6 @@
 int set_pwm_output(int pd, int fd, int ch, int val)
 {
     int reg = PWM_0_ON_L + ch * 4;
-
     if (val == 16){
         i2c_write_byte_data(pd, fd, reg+1, 0x10);
         i2c_write_byte_data(pd, fd, reg+3, 0);
@@ -120,7 +119,7 @@ int main(void)
       s5 = gpio_read(pd,SENSOR5);
     }
 
-    int cpoint=0,antichatter=0;
+    int cpoint=0,antichatter=0,backflag=0;
     // start
     while(cpoint<3){
       s1 = gpio_read(pd,SENSOR1);
@@ -129,16 +128,35 @@ int main(void)
       s4 = gpio_read(pd,SENSOR4);
       s5 = gpio_read(pd,SENSOR5);
       if(cpoint%2==0){
-        if(s2==0&&s4==0) motor_drive(pd, fd, 15, 15);
-        else if(s1==0) motor_drive(pd, fd, 15, 0);
-        else if(s5==0) motor_drive(pd, fd, 0, 15);
-        else if(s2==0) motor_drive(pd, fd, 15, 8);
-        else if(s4==0) motor_drive(pd, fd, 8, 15);
-        else motor_drive(pd, fd, 15, 15);
-        if(s1==0&&s2==0&&s3==0&&s4==0&&s5==0){
-          cpoint++;
-        }
+        if(s3==1){
+	  motor_drive(pd, fd, 16, 16);
+	  printf("1\n");
+	}
+        else if(s5==1){
+	  motor_drive(pd, fd, 8, -8);
+	  printf("2\n");
+	}
+        else if(s1==1){
+	  motor_drive(pd, fd, -8, 8);
+	  printf("3\n");
+	}
+        else if(s4==1){
+	  motor_drive(pd, fd, 16, 11);
+	  printf("4\n");
+	}
+        else if(s2==1){
+	  motor_drive(pd, fd, 11, 16);
+	  printf("5\n");
+	}
+        else{
+	  motor_drive(pd, fd, 16, 16);
+	  printf("6\n");
+	}
+        if(s1==0&&s2==0&&s3==0&&s4==0&&s5==0) antichatter++;
+        else antichatter=0;
+        if(antichatter>7) break;
       }
+      usleep(2000);
     }
 
     // 停止
