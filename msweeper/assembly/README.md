@@ -1,7 +1,7 @@
 x86-64 Assembly (AT&T/GNU as)
 
 - How to compile:
-make compile
+make compile mswp.s
 
 - How to run:
-./a.out
+make run
