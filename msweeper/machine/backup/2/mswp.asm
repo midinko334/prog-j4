@@ -72,18 +72,18 @@ main_loop:
     call read_input               ; sets r12=row, r13=col, CF=1 if invalid
     jc main_loop
 
-    mov rax, r12
-    shl rax, 3
-    add rax, r13
-    mov r10, rax                  ; index
+    mov eax, ebp
+    shl eax, 3
+    add eax, edi
+    mov ebx, eax                  ; index
 
-    cmp byte [opened + r10], 1
+    cmp byte [opened + rbx], 1
     je .already
 
-    cmp byte [mine + r10], 1
+    cmp byte [mine + rbx], 1
     je .gameover
 
-    mov byte [opened + r10], 1
+    mov byte [opened + rbx], 1
     inc r14
     cmp r14, 54                   ; 64 - 10 mines
     je .gamewin
@@ -116,12 +116,12 @@ main_loop:
 ; ============================================================
 get_random_index:
     mov eax, SYS_getrandom
-    lea edi, [randbuf]
+    lea rdi, [randbuf]
     mov esi, 1
     xor edx, edx
     syscall
     movzx eax, byte [randbuf]
-    and eax, 0x3F
+    and al, 0x3F
     ret
 
 ; ============================================================
@@ -272,98 +272,98 @@ print_board:
 ; output: r12 = row, r13 = col, CF=0 valid / CF=1 invalid(+error printed)
 ; ============================================================
 read_input:
-    mov rax, SYS_read
-    mov rdi, 0
+    mov eax, SYS_read
+    xor edi, edi
     lea rsi, [input_buf]
-    mov rdx, 31
+    mov edx, 31
     syscall
-    cmp rax, 0
+    cmp eax, 0
     jl .read_error
     je .eof
-    mov r8, rax                  ; n bytes
-    xor r9, r9                   ; i = 0
+    mov ebx, eax          ; n bytes (旧r8)
+    xor ecx, ecx           ; i = 0  (旧r9)
 
 .skip1:
-    cmp r9, r8
+    cmp ecx, ebx
     jge .invalid
-    mov al, [input_buf + r9]
+    mov al, [input_buf + rcx]
     cmp al, ' '
     je .skip1_inc
     cmp al, 9
     je .skip1_inc
     jmp .parse_row
 .skip1_inc:
-    inc r9
+    inc ecx
     jmp .skip1
 
 .parse_row:
-    cmp r9, r8
+    cmp ecx, ebx
     jge .invalid
-    mov al, [input_buf + r9]
+    mov al, [input_buf + rcx]
     cmp al, '0'
     jl .invalid
     cmp al, '9'
     jg .invalid
     sub al, '0'
-    movzx r13, al
-    inc r9
-    cmp r9, r8
+    movzx ebp, al          ; row (旧r13)
+    inc ecx
+    cmp ecx, ebx
     jge .after_row_check
-    mov al, [input_buf + r9]
+    mov al, [input_buf + rcx]
     cmp al, '0'
     jl .after_row_check
     cmp al, '9'
     jg .after_row_check
     jmp .invalid
 .after_row_check:
-    cmp r13, 7
+    cmp ebp, 7
     jg .invalid
 
 .skip2:
-    cmp r9, r8
+    cmp ecx, ebx
     jge .invalid
-    mov al, [input_buf + r9]
+    mov al, [input_buf + rcx]
     cmp al, ' '
     je .skip2_inc
     cmp al, 9
     je .skip2_inc
     jmp .parse_col
 .skip2_inc:
-    inc r9
+    inc ecx
     jmp .skip2
 
 .parse_col:
-    cmp r9, r8
+    cmp ecx, ebx
     jge .invalid
-    mov al, [input_buf + r9]
+    mov al, [input_buf + rcx]
     cmp al, '0'
     jl .invalid
     cmp al, '9'
     jg .invalid
     sub al, '0'
-    movzx r12, al
-    inc r9
-    cmp r9, r8
+    movzx edi, al           ; col (旧r12)
+    inc ecx
+    cmp ecx, ebx
     jge .after_col_check
-    mov al, [input_buf + r9]
+    mov al, [input_buf + rcx]
     cmp al, '0'
     jl .after_col_check
     cmp al, '9'
     jg .after_col_check
     jmp .invalid
 .after_col_check:
-    cmp r12, 7
+    cmp edi, 7
     jg .invalid
 
     clc
     jmp .done
 .eof:
-    mov rax, SYS_exit
-    mov rdi, 0
+    mov eax, SYS_exit
+    xor edi, edi
     syscall
 .read_error:
-    mov rax, SYS_exit
-    mov rdi, 1
+    mov eax, SYS_exit
+    mov edi, 1
     syscall
 .invalid:
     lea rsi, [err_msg]
