@@ -4,26 +4,29 @@
 %define SYS_exit      60
 
 section .data align=1
-title:      db "=== M Sweeper ===", 10, 10
-title_len   equ $-title
+title_len_b:  db title_end - title
+title:        db "=== M Sweeper ===", 10, 10
+title_end:
 
-board_header: db 10, "  0 1 2 3 4 5 6 7", 10
-header_len    equ $-board_header
+prompt_len_b: db prompt_end - prompt
+prompt:       db 10, "open (x y): "
+prompt_end:
 
-prompt:     db 10, "open (x y): "
-prompt_len  equ $-prompt
+err_len_b:    db err_end - err_msg
+err_msg:      db "Invalid input", 10
+err_end:
 
-err_msg:    db "Invalid input", 10
-err_len     equ $-err_msg
+already_len_b: db already_end - already_msg
+already_msg:   db "Already opened", 10
+already_end:
 
-already_msg: db "Already opened", 10
-already_len  equ $-already_msg
+boom_len_b:   db boom_end - boom_msg
+boom_msg:     db 10, "*** GAME OVER ***", 10
+boom_end:
 
-boom_msg:   db 10, "*** GAME OVER ***", 10
-boom_len    equ $-boom_msg
-
-win_msg:    db 10, "*** GAME CLEAR ***", 10
-win_len     equ $-win_msg
+win_len_b:    db win_end - win_msg
+win_msg:      db 10, "*** GAME CLEAR ***", 10
+win_end:
 
 section .bss align=1
 mine:           resb 64
@@ -57,7 +60,6 @@ _start:
     xor r14, r14                 ; opened_count = 0
 
     lea rsi, [title]
-    mov rdx, title_len
     call print_str
 
 ; ------------------------------------------------------------
@@ -65,7 +67,6 @@ main_loop:
     call print_board
 
     lea rsi, [prompt]
-    mov rdx, prompt_len
     call print_str
 
     call read_input               ; sets r12=row, r13=col, CF=1 if invalid
@@ -90,7 +91,6 @@ main_loop:
 
 .already:
     lea rsi, [already_msg]
-    mov rdx, already_len
     call print_str
     jmp main_loop
 
@@ -98,7 +98,6 @@ main_loop:
     mov byte [game_over_flag], 1
     call print_board
     lea rsi, [boom_msg]
-    mov rdx, boom_len
     call print_str
     mov rax, SYS_exit
     mov rdi, 1
@@ -107,7 +106,6 @@ main_loop:
 .gamewin:
     call print_board
     lea rsi, [win_msg]
-    mov rdx, win_len
     call print_str
     mov rax, SYS_exit
     mov rdi, 0
@@ -117,13 +115,13 @@ main_loop:
 ; get_random_index: rax = random value 0-63 (uniform, via getrandom)
 ; ============================================================
 get_random_index:
-    mov rax, SYS_getrandom
-    lea rdi, [randbuf]
-    mov rsi, 1
-    xor rdx, rdx
+    mov eax, SYS_getrandom
+    lea edi, [randbuf]
+    mov esi, 1
+    xor edx, edx
     syscall
-    movzx rax, byte [randbuf]
-    and rax, 0x3F
+    movzx eax, byte [randbuf]
+    and eax, 0x3F
     ret
 
 ; ============================================================
@@ -186,12 +184,26 @@ calc_neighbors:
     mov rax, r11
     ret
 
+
 print_board:
     lea rdi, [board_buf]
-    lea rsi, [board_header]
-    mov rcx, header_len
-    rep movsb
-
+    mov al, 10
+    stosb
+    mov al, ' '
+    stosb
+    stosb
+    xor ecx, ecx           ; col = 0
+.hdr_loop:
+    mov al, cl
+    add al, '0'
+    stosb
+    mov al, ' '
+    stosb
+    inc ecx
+    cmp ecx, 8
+    jl .hdr_loop
+    mov al, 10
+    stosb
     xor r8, r8                   ; row = 0
 .row_loop:
     cmp r8, 8
@@ -355,13 +367,13 @@ read_input:
     syscall
 .invalid:
     lea rsi, [err_msg]
-    mov rdx, err_len
     call print_str
     stc
 .done:
     ret
 
 print_str:
+    movzx edx, byte [rsi-1]
     mov rax, SYS_write
     mov rdi, 1
     syscall
