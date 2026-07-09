@@ -49,6 +49,7 @@ Usage
         x86_64-w64-mingw32-ld out.o -o out.exe -e _start -lkernel32
 """
 
+import os
 import re
 import sys
 import argparse
@@ -333,6 +334,21 @@ def main():
     converted, warnings = convert(src)
 
     outpath = args.output or (re.sub(r'\.s$', '', args.input) + "_win.s")
+
+    # If the input file and output file point to the same path,
+    # refuse to write unless --force is specified,
+    # to prevent accidentally overwriting/destroying the original Linux-version source.
+    in_abs = os.path.abspath(args.input)
+    out_abs = os.path.abspath(outpath)
+    same_file = (in_abs == out_abs) or (
+        os.path.exists(in_abs) and os.path.exists(out_abs) and os.path.samefile(in_abs, out_abs)
+    )
+    if same_file and not args.force:
+        print(f"[Error] Input file and output file are the same path: {outpath}")
+        print("        Aborted writing to avoid overwriting the original file.")
+        print("        Specify a different output path with -o, or add -f/--force if overwriting is acceptable.")
+        sys.exit(1)
+
     with open(outpath, "w", encoding="utf-8") as f:
         f.write(converted)
 
