@@ -52,8 +52,7 @@ main_loop:
     mov edx, 31
     syscall
     cmp eax, 0
-    jl .read_error
-    je .eof
+    jle exit
     mov ebx, eax          ; n bytes
     xor ecx, ecx           ; i = 0
 .skip1:
@@ -127,10 +126,6 @@ main_loop:
 
     clc
     jmp .done
-.eof:
-    jmp exit
-.read_error:
-    jmp exit
 .invalid:
     stc
 .done:

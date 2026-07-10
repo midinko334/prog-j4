@@ -51,91 +51,19 @@ main_loop:
     mov esi, input_buf
     mov edx, 31
     syscall
-    cmp eax, 0
-    jl .read_error
-    je .eof
-    mov ebx, eax          ; n bytes
-    xor ecx, ecx           ; i = 0
-.skip1:
-    cmp ecx, ebx
-    jge .invalid
-    mov al, [input_buf + rcx]
-    cmp al, ' '
-    je .skip1_inc
-    cmp al, 9
-    je .skip1_inc
-    jmp .parse_row
-.skip1_inc:
-    inc ecx
-    jmp .skip1
-.parse_row:
-    cmp ecx, ebx
-    jge .invalid
-    mov al, [input_buf + rcx]
-    cmp al, '0'
-    jl .invalid
-    cmp al, '9'
-    jg .invalid
-    sub al, '0'
-    movzx ebp, al          ; x
-    inc ecx
-    cmp ecx, ebx
-    jge .after_row_check
-    mov al, [input_buf + rcx]
-    cmp al, '0'
-    jl .after_row_check
-    cmp al, '9'
-    jg .after_row_check
-    jmp .invalid
-.after_row_check:
+    cmp eax, 2
+    jl exit
+
+    movzx ebp, byte [input_buf]
+    sub ebp, '0'
     cmp ebp, 7
-    jg .invalid
-.skip2:
-    cmp ecx, ebx
-    jge .invalid
-    mov al, [input_buf + rcx]
-    cmp al, ' '
-    je .skip2_inc
-    cmp al, 9
-    je .skip2_inc
-    jmp .parse_col
-.skip2_inc:
-    inc ecx
-    jmp .skip2
-.parse_col:
-    cmp ecx, ebx
-    jge .invalid
-    mov al, [input_buf + rcx]
-    cmp al, '0'
-    jl .invalid
-    cmp al, '9'
-    jg .invalid
-    sub al, '0'
-    movzx edi, al           ; y
-    inc ecx
-    cmp ecx, ebx
-    jge .after_col_check
-    mov al, [input_buf + rcx]
-    cmp al, '0'
-    jl .after_col_check
-    cmp al, '9'
-    jg .after_col_check
-    jmp .invalid
-.after_col_check:
+    ja main_loop
+
+    movzx edi, byte [input_buf + 1]
+    sub edi, '0'
     cmp edi, 7
-    jg .invalid
-
-    clc
-    jmp .done
-.eof:
-    jmp exit
-.read_error:
-    jmp exit
-.invalid:
-    stc
+    ja main_loop
 .done:
-    jc main_loop
-
     mov eax, edi
     shl eax, 3
     add eax, ebp
