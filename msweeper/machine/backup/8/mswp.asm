@@ -17,6 +17,7 @@ global _start
 
 ; ------------------------------------------------------------
 _start:
+    lea r15, [rel mine]
     cld
     xor ebx, ebx                 ; placed count
 .place_loop:
@@ -31,9 +32,9 @@ _start:
     movzx eax, byte [randbuf]
     and al, 0x3F
 .place_loop2:
-    cmp byte [mine + rax], 1
+    cmp byte [r15 + rax], 1    ;(cmp byte [mine + rbx], 1)
     je .place_loop
-    mov byte [mine + rax], 1
+    mov byte [r15 + rax], 1    ;(mov byte [mine + rbx], 1)
     inc ebx
     jmp .place_loop
 .place_done:
@@ -67,13 +68,13 @@ main_loop:
     add eax, ebp
     mov ebx, eax                  ; index
 
-    cmp byte [opened + rbx], 1
+    cmp byte [r15 + 64 + rbx], 1  ;(cmp byte [opened + rbx], 1)
     je main_loop
 
-    cmp byte [mine + rbx], 1
+    cmp byte [r15 + rbx], 1       ;(cmp byte [mine + rbx], 1)
     je .gameover
 
-    mov byte [opened + rbx], 1
+    mov byte [r15 + 64 + rbx], 1  ;(cmp byte [opened + rbx], 1)
     inc ecx
     cmp ecx, 54                   ; 64 - 10 mines
     je .gamewin
@@ -122,7 +123,7 @@ calc_neighbors:
     shl eax, 3
     add eax, esi
     add eax, edx                    ; neighbor index = nr*8+nc
-    cmp byte [mine + rax], 1
+    cmp byte [r15 + rax], 1
     jne .next_dc
     inc ebx
 .next_dc:
@@ -166,11 +167,11 @@ print_board:
     cmp esi, 8
     jge .col_done
     lea eax, [esi + ebp*8]         ; index = row*8+col
-    cmp byte [opened + rax], 1
+    cmp byte [r15 + 64 + rax], 1
     je .print_number
     cmp byte [game_over_flag], 0
     je .print_dot
-    cmp byte [mine + rax], 1
+    cmp byte [r15 + rax], 1
     je .print_mine
 .print_dot:
     mov al, '.'
