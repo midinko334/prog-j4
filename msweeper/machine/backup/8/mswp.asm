@@ -6,9 +6,9 @@ default rel
 
 section .bss align=1
 mine:           resb 64
-opened:         resb 64
 game_over_flag: resb 1
 randbuf:        resb 1
+opened:         resb 64
 input_buf:      resb 32
 board_buf:      resb 512
 
@@ -29,7 +29,7 @@ _start:
     mov esi, 1
     xor edx, edx
     syscall
-    movzx eax, byte [randbuf]
+    movzx eax, byte [r15 + 65]
     and al, 0x3F
 .place_loop2:
     cmp byte [r15 + rax], 1    ;(cmp byte [mine + rbx], 1)
@@ -68,22 +68,22 @@ main_loop:
     add eax, ebp
     mov ebx, eax                  ; index
 
-    cmp byte [r15 + 64 + rbx], 1  ;(cmp byte [opened + rbx], 1)
+    cmp byte [r15 + 66 + rbx], 1  ;(cmp byte [opened + rbx], 1)
     je main_loop
 
     cmp byte [r15 + rbx], 1       ;(cmp byte [mine + rbx], 1)
     je .gameover
 
-    mov byte [r15 + 64 + rbx], 1  ;(cmp byte [opened + rbx], 1)
+    mov byte [r15 + 66 + rbx], 1  ;(cmp byte [opened + rbx], 1)
     inc ecx
     cmp ecx, 54                   ; 64 - 10 mines
     je .gamewin
     jmp main_loop
 .gameover:
-    mov byte [game_over_flag], 'F'
+    mov byte [r15 + 64], 'F'
     jmp short .gameend
 .gamewin:
-    mov byte [game_over_flag], 'S'
+    mov byte [r15 + 64], 'S'
 .gameend:
     call print_board
 exit:
@@ -167,9 +167,9 @@ print_board:
     cmp esi, 8
     jge .col_done
     lea eax, [esi + ebp*8]         ; index = row*8+col
-    cmp byte [r15 + 64 + rax], 1
+    cmp byte [r15 + 66 + rax], 1
     je .print_number
-    cmp byte [game_over_flag], 0
+    cmp byte [r15 + 64], 0
     je .print_dot
     cmp byte [r15 + rax], 1
     je .print_mine
@@ -194,9 +194,9 @@ print_board:
     inc ebp
     jmp .row_loop
 .row_done:
-    cmp byte [game_over_flag], 0
+    cmp byte [r15 + 64], 0
     je .no_end
-    mov al, [game_over_flag]          ; 'F' or 'S'
+    mov al, [r15 + 64]          ; 'F' or 'S'
     stosb
     mov al, 10
     stosb
