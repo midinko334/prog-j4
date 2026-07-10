@@ -6,9 +6,9 @@ default rel
 
 section .bss align=1
 mine:           resb 64
-opened:         resb 64
 game_over_flag: resb 1
 randbuf:        resb 1
+opened:         resb 64
 input_buf:      resb 32
 board_buf:      resb 512
 
@@ -17,6 +17,7 @@ global _start
 
 ; ------------------------------------------------------------
 _start:
+    mov r15d, mine
     cld
     xor ebx, ebx                 ; placed count
 .place_loop:
@@ -25,19 +26,20 @@ _start:
 .get_random_index:
     mov eax, SYS_getrandom
     mov edi, randbuf
-    mov esi, 1
+    xor esi, esi
+    inc esi
     xor edx, edx
     syscall
-    movzx eax, byte [randbuf]
+    movzx eax, byte [r15 + 65]
     and al, 0x3F
 .place_loop2:
-    cmp byte [mine + rax], 1
+    cmp byte [r15 + rax], 1    ;(cmp byte [mine + rbx], 1)
     je .place_loop
-    mov byte [mine + rax], 1
+    mov byte [r15 + rax], 1    ;(mov byte [mine + rbx], 1)
     inc ebx
     jmp .place_loop
 .place_done:
-    xor ecx, ecx
+    xor r13d, r13d
 
 ; ------------------------------------------------------------
 main_loop:
@@ -47,7 +49,7 @@ main_loop:
     xor eax, eax    ;(mov eax, SYS_read)
     xor edi, edi
     mov esi, input_buf
-    mov edx, 31
+    mov dl, 31
     syscall
     cmp eax, 2
     jl exit
@@ -67,22 +69,22 @@ main_loop:
     add eax, ebp
     mov ebx, eax                  ; index
 
-    cmp byte [opened + rbx], 1
+    cmp byte [r15 + 66 + rbx], 1  ;(cmp byte [opened + rbx], 1)
     je main_loop
 
-    cmp byte [mine + rbx], 1
+    cmp byte [r15 + rbx], 1       ;(cmp byte [mine + rbx], 1)
     je .gameover
 
-    mov byte [opened + rbx], 1
-    inc ecx
-    cmp ecx, 54                   ; 64 - 10 mines
+    mov byte [r15 + 66 + rbx], 1  ;(cmp byte [opened + rbx], 1)
+    inc r13d
+    cmp r13d, 54                   ; 64 - 10 mines
     je .gamewin
     jmp main_loop
 .gameover:
-    mov byte [game_over_flag], 'F'
+    mov byte [r15 + 64], 'F'
     jmp short .gameend
 .gamewin:
-    mov byte [game_over_flag], 'S'
+    mov byte [r15 + 64], 'S'
 .gameend:
     call print_board
 exit:
@@ -108,21 +110,21 @@ calc_neighbors:
     test edx, edx
     jz .next_dc
 .checkbounds:
-    lea eax, [ebp + ecx]           ; nr
-    cmp eax, 0
-    jl .next_dc
+    lea eax, [rbp + rcx]           ; nr
+    test eax, eax
+    js .next_dc
     cmp eax, 7
     jg .next_dc
-    lea eax, [esi + edx]           ; nc
-    cmp eax, 0
-    jl .next_dc
+    lea eax, [rsi + rdx]           ; nc
+    test eax, eax
+    js .next_dc
     cmp eax, 7
     jg .next_dc
-    lea eax, [ebp + ecx]           ; nr (recompute)
+    lea eax, [rbp + rcx]           ; nr (recompute; no free reg to cache it in)
     shl eax, 3
     add eax, esi
     add eax, edx                    ; neighbor index = nr*8+nc
-    cmp byte [mine + rax], 1
+    cmp byte [r15 + rax], 1
     jne .next_dc
     inc ebx
 .next_dc:
@@ -165,12 +167,12 @@ print_board:
 .col_loop:
     cmp esi, 8
     jge .col_done
-    lea eax, [esi + ebp*8]         ; index = row*8+col
-    cmp byte [opened + rax], 1
+    lea eax, [rsi + rbp*8]         ; index = row*8+col
+    cmp byte [r15 + 66 + rax], 1
     je .print_number
-    cmp byte [game_over_flag], 0
+    cmp byte [r15 + 64], 0
     je .print_dot
-    cmp byte [mine + rax], 1
+    cmp byte [r15 + rax], 1
     je .print_mine
 .print_dot:
     mov al, '.'
@@ -193,9 +195,9 @@ print_board:
     inc ebp
     jmp .row_loop
 .row_done:
-    cmp byte [game_over_flag], 0
+    cmp byte [r15 + 64], 0
     je .no_end
-    mov al, [game_over_flag]          ; 'F' or 'S'
+    mov al, [r15 + 64]          ; 'F' or 'S'
     stosb
     mov al, 10
     stosb
@@ -203,10 +205,12 @@ print_board:
     mov eax, board_buf
     sub rdi, rax
     mov edx, edi
-    mov esi, board_buf
+    mov esi, eax
 
 write:
-    mov eax, SYS_write
-    mov edi, 1
+    xor eax, eax
+    inc eax                       ; SYS_write = 1
+    xor edi, edi
+    inc edi                       ; fd = 1 (stdout)
     syscall
     ret
