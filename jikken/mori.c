@@ -74,6 +74,39 @@ void motor_drive(int pd, int fd, int lm, int rm)
     set_pwm_output(pd, fd, ENB_PWM, lm);
 }
 
+int run1st(int pd, int fd, int s1, int s2, int s3, int s4, int s5){
+
+  if(s3==1){
+    motor_drive(pd, fd, 12, 12);
+    printf("0\n");
+  }
+  else if(s5==1&&(s1==1||s2==1)){
+    motor_drive(pd, fd, 12, 12);
+    printf("1\n");
+  }
+  else if(s2==1){
+    motor_drive(pd, fd, 6, 12);
+    printf("2\n");
+  }
+  else if(s4==1){
+    motor_drive(pd, fd, 12, 6);
+    printf("3\n");
+  }
+  else if(s1==1){
+    motor_drive(pd, fd, -8, 8);
+    printf("4\n");
+  }
+  else if(s5==1){
+    motor_drive(pd, fd, 8, -8);
+    printf("5\n");
+  }
+  else{
+    motor_drive(pd, fd, 16, 16);
+    printf("6\n");
+  }
+
+}
+
 // ===== メイン =====
 int main(void)
 {
@@ -102,6 +135,8 @@ int main(void)
     printf("start\n");
 
     int s1=0,s2=0,s3=0,s4=0,s5=0;
+
+/*
     printf("set stick\n");
     while(s1==0||s2==0||s3==0||s4==0||s5==0){
       s1 = gpio_read(pd,SENSOR1);
@@ -118,7 +153,7 @@ int main(void)
       s4 = gpio_read(pd,SENSOR4);
       s5 = gpio_read(pd,SENSOR5);
     }
-
+*/
     int cpoint=0,antichatter=0,backflag=0;
     // start
     while(cpoint<3){
@@ -127,36 +162,23 @@ int main(void)
       s3 = gpio_read(pd,SENSOR3);
       s4 = gpio_read(pd,SENSOR4);
       s5 = gpio_read(pd,SENSOR5);
-      if(cpoint%2==0){
-        if(s3==1){
-	  motor_drive(pd, fd, 16, 16);
-	  printf("1\n");
+      run1st(pd,fd,s1,s2,s3,s4,s5);
+      if(s1==0&&s2==0&&s3==0&&s4==0&&s5==0) antichatter++;
+      else antichatter=0;
+      if(antichatter>3){
+	if(1){
+	  motor_drive(pd, fd, 0, 0);
+	  usleep(300000);
 	}
-        else if(s5==1){
-	  motor_drive(pd, fd, 8, -8);
-	  printf("2\n");
+	s3=0;
+	while(s3==0){
+	  s3 = gpio_read(pd,SENSOR3);
+	  motor_drive(pd, fd, 8*(1-2*(cpoint%2)), -8*(1-2*(cpoint%2)));
+          usleep(5000);
 	}
-        else if(s1==1){
-	  motor_drive(pd, fd, -8, 8);
-	  printf("3\n");
-	}
-        else if(s4==1){
-	  motor_drive(pd, fd, 16, 11);
-	  printf("4\n");
-	}
-        else if(s2==1){
-	  motor_drive(pd, fd, 11, 16);
-	  printf("5\n");
-	}
-        else{
-	  motor_drive(pd, fd, 16, 16);
-	  printf("6\n");
-	}
-        if(s1==0&&s2==0&&s3==0&&s4==0&&s5==0) antichatter++;
-        else antichatter=0;
-        if(antichatter>7) break;
+	cpoint++;
       }
-      usleep(2000);
+      usleep(5000);
     }
 
     // 停止
