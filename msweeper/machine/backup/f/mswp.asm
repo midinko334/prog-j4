@@ -1,6 +1,7 @@
 default rel
 ;%define SYS_read      0
 %define SYS_write     1
+%define SYS_getrandom 318
 %define SYS_exit      60
 
 section .bss align=1
