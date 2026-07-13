@@ -1,6 +1,7 @@
 default rel
 ;%define SYS_read      0
 %define SYS_write     1
+%define SYS_getrandom 318
 %define SYS_exit      60
 
 section .bss align=1
@@ -19,7 +20,7 @@ _start:
     push 10
     pop rbx                   ; mines remaining (countdown)
     mov ecx, esp                 ; seed from stack pointer (ASLR entropy)
-    xor r14d, r14d
+;    xor r14d, r14d
 .place_loop:
     lea ecx, [rcx + rcx*4 + 1]
     mov eax, ecx
@@ -29,14 +30,13 @@ _start:
     dec ebx
     jnz .place_loop
 .place_done:
-    xor r13d, r13d
+;    xor r13d, r13d
 
 ; ------------------------------------------------------------
 main_loop:
     call print_board
-;    call read_input               ; sets ebp=x, edi=y, CF=1 if invalid
 .read_input:
-    xor eax, eax    ;(mov eax, SYS_read)
+    xor eax, eax
     xor edi, edi
     lea esi, [r15 + 2]
     mov dl, 31
@@ -54,7 +54,7 @@ main_loop:
     add al, ah
     movzx eax, al
 
-    cmp byte [r15 + 34 + rax], 1  ;(cmp byte [opened + rax], 1)
+    cmp byte [r15 + 34 + rax], 1
     je main_loop
     bt r14, rax
     jnc .safe
@@ -112,7 +112,7 @@ calc_neighbors:
     ret
 
 print_board:
-    mov edi, board_buf
+    lea edi, [r15 + 98]
     push rdi
     mov al, ' '
     stosb

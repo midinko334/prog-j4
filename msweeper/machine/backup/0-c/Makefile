@@ -1,7 +1,7 @@
 AS = nasm
 LD = ld
 
-# SRCS = $(filter %.asm,$(MAKECMDGOALS))
+#SRCS = $(filter %.asm,$(MAKECMDGOALS))
 SRCS = mswp.asm
 OBJS = $(SRCS:.asm=.o)
 LINK = link.ld
