@@ -1,7 +1,0 @@
-/home/nudisco/Velato/Rottytooth.Esolang.Velato/obj/Release/.NETFramework,Version=v4.8.AssemblyAttribute.cs
-/home/nudisco/Velato/Rottytooth.Esolang.Velato/bin/Release/Velato.exe.config
-/home/nudisco/Velato/Rottytooth.Esolang.Velato/bin/Release/Velato.exe.mdb
-/home/nudisco/Velato/Rottytooth.Esolang.Velato/bin/Release/Velato.exe
-/home/nudisco/Velato/Rottytooth.Esolang.Velato/obj/Release/Velato.exe
-/home/nudisco/Velato/Rottytooth.Esolang.Velato/obj/Release/Velato.exe.mdb
-/home/nudisco/Velato/Rottytooth.Esolang.Velato/bin/Release/NAudio.dll
