@@ -1,5 +1,5 @@
 MONO = mono
-VELATO = Velato/Rottytooth.Esolang.Velato/bin/Release/Velato.exe
+VELATO = Release/Velato.exe
 .PHONY: ly2midi compile run clean
 
 ly2midi:
@@ -17,6 +17,14 @@ run:
 
 %:
         @:
+
+install:
+	git clone git@github.com:rottytooth/Velato && \
+	cd Velato && \
+	xbuild Rottytooth.Esolang.Velato/Rottytooth.Esolang.Velato.csproj /p:Configuration=Release && \
+	cp -r Rottytooth.Esolang.Velato/bin/Release/ ../ && \
+	cd ../ && \
+	rm -rf Velato/
 
 clean:
 	rm -f *.exe *.mdb
