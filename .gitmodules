@@ -1,0 +1,3 @@
+[submodule "velato/Velato"]
+	path = velato/Velato
+	url = https://github.com/rottytooth/Velato
