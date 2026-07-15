@@ -53,13 +53,17 @@ main_loop:
     cmp byte [r15 + 34 + rax], 1
     je main_loop
     bt r14, rax
-    jc .gameend
+    jnc .safe
+    mov al, 'F'
+    jmp short .gameend
+.safe:
     mov byte [r15 + 34 + rax], 1
     inc r13d
     cmp r13d, 54
     jne main_loop
+    mov al, 'S'
 .gameend:
-    inc byte [r15]
+    mov [r15], al
     call print_board
 exit:
     push 60
@@ -158,6 +162,11 @@ print_board:
     cmp ebp, 8
     jl .row_loop
 .row_done:
+    cmp byte [r15], 0
+    je .no_end
+    mov al, [r15]          ; 'F' or 'S'
+    stosb
+.no_end:
     pop rax
     sub edi, eax
     mov edx, edi
