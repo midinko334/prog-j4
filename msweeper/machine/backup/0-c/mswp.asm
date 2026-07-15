@@ -17,8 +17,8 @@ global _start
 ; ------------------------------------------------------------
 _start:
     mov r15d, gameflag
-    mov bl, 10                   ; mines remaining (countdown)
-    mov ecx, esp                 ; seed from stack pointer (ASLR entropy)
+    mov bl, 10
+    mov ecx, esp
 ;    xor r14d, r14d
 .place_loop:
     lea ecx, [rcx + rcx*4 + 1]
@@ -89,7 +89,7 @@ calc_neighbors:
     lea eax, [rcx + rbp]           ; nr (recompute; no free reg to cache it in)
     shl eax, 3
     add eax, esi
-    add eax, edx                    ; neighbor index = nr*8+nc
+    add eax, edx
     bt r14, rax
     jnc .next_dc
     inc ebx
@@ -109,7 +109,7 @@ print_board:
     mov al, ' '
     stosb
     stosb
-    xor ecx, ecx           ; col = 0
+    xor ecx, ecx
 .hdr_loop:
     lea eax, [rcx + '0']
     stosb
@@ -120,15 +120,15 @@ print_board:
     jl .hdr_loop
     mov al, 10
     stosb
-    xor ebp, ebp                 ; row = 0
+    xor ebp, ebp
 .row_loop:
     lea eax, [rbp + '0']
     stosb
     mov al, ' '
     stosb
-    xor esi, esi                   ; col = 0
+    xor esi, esi
 .col_loop:
-    lea eax, [rsi + rbp*8]         ; index = row*8+col
+    lea eax, [rsi + rbp*8]
     cmp byte [r15 + 34 + rax], 1
     je .print_number
     cmp byte [r15], 0
@@ -142,7 +142,7 @@ print_board:
     mov al, '*'
     jmp .store_char
 .print_number:
-    call calc_neighbors            ; eax already = index
+    call calc_neighbors
     add al, '0'
 .store_char:
     stosb
