@@ -6,8 +6,6 @@ default rel
 
 section .bss align=1
 gameflag:       resb 1
-randbuf:        resb 1
-input_buf:      resb 32
 opened:         resb 64
 board_buf:      resb 512
 
@@ -37,11 +35,12 @@ main_loop:
 .read_input:
     xor eax, eax
     xor edi, edi
-    lea esi, [r15 + 2]
+    push rsp
+    pop rsi
     mov dl, 3
     syscall
 
-    movzx eax, word [r15 + 2]
+    movzx eax, word [rsp]
     sub ax, 0x3030
     test ax, 0xf8f8
     jnz main_loop
@@ -50,11 +49,11 @@ main_loop:
     add al, ah
     xor ah, ah
 
-    cmp byte [r15 + 34 + rax], 1
+    cmp byte [r15 + 1 + rax], 1
     je main_loop
     bt r14, rax
     jc .gameend
-    mov byte [r15 + 34 + rax], 1
+    mov byte [r15 + 1 + rax], 1
     inc r13d
     cmp r13d, 54
     jne main_loop
@@ -102,7 +101,7 @@ calc_neighbors:
     ret
 
 print_board:
-    lea edi, [r15 + 98]
+    lea edi, [r15 + 65]
     push rdi
     mov al, ' '
     stosb
@@ -127,7 +126,7 @@ print_board:
     xor esi, esi
 .col_loop:
     lea eax, [rsi + rbp*8]
-    cmp byte [r15 + 34 + rax], 1
+    cmp byte [r15 + 1 + rax], 1
     je .print_number
     cmp byte [r15], 0
     je .print_dot
