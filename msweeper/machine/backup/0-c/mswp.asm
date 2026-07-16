@@ -62,8 +62,7 @@ main_loop:
     inc byte [r15]
     call print_board
 exit:
-    push 60
-    pop rax
+    mov al, 60
     syscall
 
 calc_neighbors:
@@ -80,13 +79,12 @@ calc_neighbors:
     or eax, edx
     jz .next_dc
 .checkbounds:
-    lea eax, [rcx + rbp]           ; nr
-    cmp eax, 8                     ; unsigned: catches nr<0 and nr>7 in one test
-    jae .next_dc
     lea eax, [rsi + rdx]           ; nc
     cmp eax, 8                     ; unsigned: catches nc<0 and nc>7 in one test
     jae .next_dc
-    lea eax, [rcx + rbp]           ; nr (recompute; no free reg to cache it in)
+    lea eax, [rcx + rbp]           ; nr
+    cmp eax, 8                     ; unsigned: catches nr<0 and nr>7 in one test
+    jae .next_dc
     shl eax, 3
     add eax, esi
     add eax, edx
@@ -165,7 +163,7 @@ print_board:
 
 write:
     push 1
-    pop rax                       ; SYS_write = 1
+    pop rax
     mov edi, eax
     syscall
     ret
