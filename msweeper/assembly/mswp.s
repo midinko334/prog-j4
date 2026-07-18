@@ -32,6 +32,7 @@ msg_invalid: .string "Invalid input. Try again.\n"
 msg_newline: .string "\n"
 msg_space:   .string " "
 msg_dot:     .string "."
+clear:       .string "\x1b[2J\x1b[H"
 
     .section .text
     .global _start
@@ -705,6 +706,7 @@ print_board:
     pushq %rbx
     pushq %r12
     pushq %r13
+
     call  print_header
     xorq  %r12, %r12
 .pb_y:
@@ -1008,24 +1010,36 @@ game_loop:
     call  check_clear
     cmpq  $1, %rax
     je    .gl_clear
+    leaq  clear(%rip), %rsi
+    call  print_str
     jmp   .gl_loop
 .gl_invalid:
+    leaq  clear(%rip), %rsi
+    call  print_str
     leaq  msg_invalid(%rip), %rsi
     call  print_str
     jmp   .gl_loop
 .gl_already:
+    leaq  clear(%rip), %rsi
+    call  print_str
     leaq  msg_already(%rip), %rsi
     call  print_str
     jmp   .gl_loop
 .gl_gameover:
+    leaq  clear(%rip), %rsi
+    call  print_str
     leaq  msg_gameover(%rip), %rsi
     call  print_str
     jmp   .gl_ret
 .gl_marked:
+    leaq  clear(%rip), %rsi
+    call  print_str
     leaq  msg_marked(%rip), %rsi
     call  print_str
     jmp   .gl_loop
 .gl_clear:
+    leaq  clear(%rip), %rsi
+    call  print_str
     leaq  msg_clear(%rip), %rsi
     call  print_str
 .gl_ret:
