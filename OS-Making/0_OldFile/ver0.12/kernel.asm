@@ -4,6 +4,7 @@
 [BITS 32]               ; 32ビットプロテクトモード
 
 CLOCK_TASK EQU 0x1200
+MSWP_TASK  EQU 0x2000
 
 ; プログラムの開始点
 start:
@@ -33,8 +34,14 @@ start:
     ; 各タスクは短時間で制御を返す。カーネルが交互に実行することで、
     ; 時計とゲームを協調的にマルチタスク実行する。
 .scheduler:
+    cld
+    mov esi, minesweeper_image
+    mov edi, 0x2000
+    mov ecx, minesweeper_image_end - minesweeper_image
+    rep movsb
+
     call CLOCK_TASK
-    call mswp
+    call MSWP_TASK
     cmp al, 1                       ; minesweeper requested shutdown
     je shutdown
     jmp .scheduler
@@ -109,7 +116,6 @@ clock_image:
     incbin "Bin/clock.bin"
 clock_image_end:
 
-; MineSweeper は独立バイナリにせず、カーネルのコードとして直接展開する。
-; これにより mswp.bin のロードと 0x2000 へのコピーは不要になる。
-mswp_image_start:
-%include "mswp.asm"
+minesweeper_image:
+    incbin "Bin/mswp.bin"
+minesweeper_image_end:

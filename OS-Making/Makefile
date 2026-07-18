@@ -16,23 +16,24 @@ IMG        = disk.img
 # Default
 all: $(IMG)
 
-# ディスクイメージ作成
-$(IMG): $(BOOT) $(KERNEL)
-	cat Bin/$(BOOT) Bin/$(KERNEL) > Bin/$@
+# Create Disk Image
+$(KERNEL): clock.bin mswp.bin
 
-$(KERNEL): clock.bin
-
-# アセンブリからバイナリへの変換ルール
+# Assemble assembly to bin
 %.bin: %.asm
 	$(NASM) $(NFLAGS) $< -o Bin/$@
 
+# Compile
+compile: $(BOOT) $(KERNEL)
+	cat Bin/$(BOOT) Bin/$(KERNEL) > Bin/disk.img
+
 # Run
-run: $(IMG)
-	$(QEMU) $(QEMU_FLAGS) -fda Bin/$< -rtc base=localtime
+run:
+	$(QEMU) $(QEMU_FLAGS) -fda Bin/$(IMG) -rtc base=localtime
 
 # CleanUp
 clean:
-	rm -f Bin/$(IMG) Bin/$(BOOT) Bin/$(KERNEL) Bin/clock.bin
+	rm -f Bin/$(IMG) Bin/$(BOOT) Bin/$(KERNEL) Bin/clock.bin Bin/mswp.bin
 
 # FakeTarget
 .PHONY: all run clean

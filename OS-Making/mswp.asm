@@ -1,4 +1,6 @@
 ; minesweeper.asm - kernel copies this image to 0x2000 and calls it once per tick
+[ORG 0x2000]
+[BITS 32]
 
 VIDEO        EQU 0xB8000
 PANEL_START  EQU VIDEO + 82          ; column 41 (right of the divider)
@@ -7,7 +9,7 @@ SAFE_CELLS   EQU 54
 MINE_COUNT   EQU 10
 PANEL_WIDTH  EQU 39
 
-mswp:
+start:
     cmp byte [initialized], 0
     jne .poll_input
     call reset_game
@@ -241,7 +243,7 @@ print_board:
 
     mov edi, PANEL_START
     mov esi, controls_message
-    call mswp_print_string
+    call print_string
     mov edi, BOARD_OFFSET
     xor ebx, ebx
     mov ecx, 8
@@ -249,7 +251,7 @@ print_board:
     push ecx
     mov ecx, 8
 .cell:
-    mov al, '.'
+    mov al, '#'
     cmp byte [opened + ebx], 0
     je .color
     cmp byte [mine_map + ebx], 0
@@ -285,26 +287,26 @@ print_board:
     jmp .done
 .clear:
     mov esi, clear_message
-    call mswp_print_string
+    call print_string
     jmp .gameend
 .over:
     mov esi, over_message
-    call mswp_print_string
+    call print_string
 .gameend:
     mov edi, PANEL_START + 160 * 13
     mov esi, end_message
-    call mswp_print_string
+    call print_string
     cmp byte [retry_prompt], 0
     je .quit_question
     mov edi, PANEL_START + 160 * 13
     mov esi, retry_message
-    call mswp_print_string
+    call print_string
 .quit_question:
     cmp byte [quit_prompt], 0
     je .done
     mov edi, PANEL_START + 160 * 13
     mov esi, quit_message
-    call mswp_print_string
+    call print_string
 .done:
     popad
     ret
@@ -360,7 +362,7 @@ count_near:
     pop ebx
     ret
 
-mswp_print_string:
+print_string:
     mov ah, 0x07
 .loop:
     lodsb
@@ -391,4 +393,4 @@ random_seed   dd 0
 opened        times 64 db 0
 mine_map      times 64 db 0
 
-times 2048-($-mswp_image_start) db 0
+times 2048-($-$$) db 0
