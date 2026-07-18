@@ -39,9 +39,13 @@ start:
 .scheduler:
     call CLOCK_TASK
     call MSWP_TASK
+    cmp al, 1                       ; minesweeper requested shutdown
+    je shutdown
     jmp .scheduler
 
     ; シャットダウン表示
+shutdown:
+    mov edi, 0xB8000 + 160          ; display the message on the second row
     mov esi, endmsg     ; msgアドレスを設定
     call print_string   ; 文字列表示ルーチンを呼び出し
 

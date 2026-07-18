@@ -3,9 +3,6 @@
 [ORG 0x1000]            ; カーネルのロード先アドレス
 [BITS 32]               ; 32ビットプロテクトモード
 
-CLOCK_TASK EQU 0x1200
-MSWP_TASK  EQU 0x2000
-
 ; プログラムの開始点
 start:
 
@@ -21,25 +18,8 @@ start:
     call print_string   ; 文字列表示ルーチンを呼び出し
     call newline
 
-    ; 時計を実行用アドレスへコピーする。
-    cld
-    mov esi, clock_image
-    mov edi, 0x1200
-    mov ecx, clock_image_end - clock_image
-    rep movsb
-
-    ; 組み込みアプリを実行用アドレスへコピーする。
-    cld
-    mov esi, minesweeper_image
-    mov edi, 0x2000
-    mov ecx, minesweeper_image_end - minesweeper_image
-    rep movsb
-    ; 各タスクは短時間で制御を返す。カーネルが交互に実行することで、
-    ; 時計とゲームを協調的にマルチタスク実行する。
-.scheduler:
-    call CLOCK_TASK
-    call MSWP_TASK
-    jmp .scheduler
+    ; アプリ起動
+    jmp 0x1200
 
     ; シャットダウン表示
     mov esi, endmsg     ; msgアドレスを設定
@@ -92,12 +72,4 @@ sttmsg db 'Kernel Loaded!', 0  ; 表示文字列と文字列終端（NULL文字�
 endmsg db 'Kernel Finshed', 0  ; 表示文字列と文字列終端（NULL文字）
 
 ; サイズ調整
-times 512-($-$$) db 0   ; カーネル本体を先頭1セクタに調整
-
-clock_image:
-    incbin "Bin/clock.bin"
-clock_image_end:
-
-minesweeper_image:
-    incbin "Bin/mswp.bin"
-minesweeper_image_end:
+times 512-($-$$) db 0   ; 1セクタ（512バイト）に調整

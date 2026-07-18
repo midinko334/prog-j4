@@ -64,7 +64,7 @@ exit:
     mov al, 60
     syscall
 
-calc_neighbors:
+count_near:
     mov ebp, eax
     shr ebp, 3               ; y
     mov esi, eax
@@ -139,7 +139,7 @@ print_board:
     mov al, '*'
     jmp .store_char
 .print_number:
-    call calc_neighbors
+    call count_near
     add al, '0'
 .store_char:
     stosb

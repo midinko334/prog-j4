@@ -2,11 +2,18 @@
 [ORG 0x1200]
 [BITS 32]
 
-; 0x1200 に配置され、呼び出し元へ戻る時計更新ルーチン。
-; 画面の先頭行だけを書き換えるので、2行目以降のアプリ表示を壊さない。
-clock_update:
-    pushad
-    cld
+start:
+    ; I/O起動
+    in al, dx
+    out dx, al
+
+    call main_loop
+    call newline
+
+    ret     ; kernel に戻る
+
+main_loop:
+    mov edi, 0xB8000+160
 
     call read_rtc       ; 時計読み込み
     mov al, [rtc_hour]
@@ -20,19 +27,6 @@ clock_update:
     mov al, [rtc_sec]
     call bcd_to_bin
     mov [rtc_sec], al
-
-    ; カーネルはこのルーチンを高速に繰り返し呼び出す。RTC の秒が
-    ; 変わっていない間は画面に触れないことで、消去と再描画による
-    ; 点滅を防ぐ。
-    cmp al, [last_displayed_sec]
-    je .done
-    mov [last_displayed_sec], al
-
-    mov edi, 0xB8000
-    mov ax, 0x0720
-    mov ecx, 80
-    rep stosw
-    mov edi, 0xB8000
 
     mov al, [rtc_hour]  ; 時計表示
     call print_dec_byte
@@ -53,9 +47,9 @@ clock_update:
     mov al, [rtc_sec]
     call print_dec_byte
 
-.done:
-    popad
-    ret
+    call delay
+
+    jmp main_loop
 
 wait_rtc:
     mov al, 0x0A
@@ -133,10 +127,29 @@ print_dec_byte:
     pop eax
     ret
 
+; 改行
+newline:
+    mov eax, edi
+    sub eax, 0xB8000
+    mov ebx, 160        ; 1行のバイト数
+    xor edx, edx
+    div ebx             ; eax = 現在の行番号
+    inc eax             ; 次の行へ
+    mul ebx
+    add eax, 0xB8000
+    mov edi, eax
+    ret
+
+
+delay:
+    mov ecx, 0x5FFFFF
+.loop:
+    loop .loop
+    ret
+
 ; データ領域
 rtc_sec  db 0
 rtc_min  db 0
 rtc_hour db 0
-last_displayed_sec db 0xFF
 
 times 512-($-$$) db 0   ; 1セクタ（512バイト）に調整

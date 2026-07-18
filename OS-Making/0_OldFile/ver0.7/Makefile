@@ -11,17 +11,15 @@ QEMU_FLAGS = -monitor stdio
 # OutputFile
 BOOT       = boot.bin
 KERNEL     = kernel.bin
-MSWP       = mswp.bin
+CLOCK	   = clock.bin
 IMG        = disk.img
 
 # Default
 all: $(IMG)
 
 # ディスクイメージ作成
-$(IMG): $(BOOT) $(KERNEL)
-	cat Bin/$(BOOT) Bin/$(KERNEL) > Bin/$@
-
-$(KERNEL): $(MSWP) clock.bin
+$(IMG): $(BOOT) $(KERNEL) $(CLOCK)
+	cat Bin/$(BOOT) Bin/$(KERNEL) Bin/$(CLOCK) > Bin/$@
 
 # アセンブリからバイナリへの変換ルール
 %.bin: %.asm
@@ -33,7 +31,7 @@ run: $(IMG)
 
 # CleanUp
 clean:
-	rm -f Bin/$(IMG) Bin/$(BOOT) Bin/$(KERNEL) Bin/$(MSWP) Bin/clock.bin
+	rm -f Bin/$(IMG) Bin/$(BOOT) Bin/$(KERNEL) Bin/$(CLOCK)
 
 # FakeTarget
 .PHONY: all run clean

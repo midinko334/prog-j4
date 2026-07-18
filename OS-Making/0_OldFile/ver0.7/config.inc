@@ -2,7 +2,7 @@
 
 ; 定数定義
 KERNEL_OFFSET EQU 0x1000  ; カーネルのロード先アドレス
-SECTOR_COUNT  EQU 6       ; カーネル1 + 時計1 + 組み込みゲーム4セクタ
+SECTOR_COUNT  EQU 4       ; 読み込むセクタ数
 START_SECTOR  EQU 2       ; 開始セクタ番号
 CYLINDER_NUM  EQU 0       ; シリンダ番号
 HEAD_NUM      EQU 0       ; ヘッド番号

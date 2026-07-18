@@ -94,6 +94,7 @@ endmsg db 'Kernel Finshed', 0  ; 表示文字列と文字列終端（NULL文字�
 ; サイズ調整
 times 512-($-$$) db 0   ; カーネル本体を先頭1セクタに調整
 
+; ローダを使わず、カーネルに同梱した各イメージを上でコピーする。
 clock_image:
     incbin "Bin/clock.bin"
 clock_image_end:
