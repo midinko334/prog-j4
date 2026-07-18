@@ -14,7 +14,7 @@ KERNEL     = kernel.bin
 IMG        = disk.img
 
 # Default
-all: compile
+all: $(IMG)
 
 # Create Disk Image
 $(KERNEL): clock.bin mswp.bin

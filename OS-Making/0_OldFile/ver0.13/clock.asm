@@ -1,21 +1,13 @@
 ; clock.asm
-[ORG 0x4000]
+[ORG 0x1200]
 [BITS 32]
 
 VIDEO       EQU 0xB8000
 PANEL_START EQU VIDEO               ; left panel (columns 0-39)
 PANEL_WIDTH EQU 40
-CLOCK_KEY   EQU 0x3000
 
-; 割り込みで起動された独立タスク。retせず、次のPIT割り込みまで実行を続ける。
-start:
-.loop:
-    mov al, [CLOCK_KEY]
-    mov byte [CLOCK_KEY], 0
-    call clock_update
-    jmp .loop
-
-; 左半分だけを書き換える時計処理。
+; 0x1200 に配置され、呼び出し元へ戻る時計更新ルーチン。
+; 左半分だけを書き換えるので、右半分のゲーム表示を壊さない。
 clock_update:
     pushad
     cld
@@ -74,27 +66,16 @@ clock_update:
     je .done
     mov byte [screen_dirty], 0
 
-    ; 1行目はカーネル表示、2行目は時計、3行目はヒントまたは作業表示。
-    ; ここでは3行目だけを更新する。
-    mov edi, PANEL_START + 160 * 2
+    ; 起動メッセージがある先頭行は残し、時計を表示する2行目だけを消す。
+    mov edi, PANEL_START + 160
     mov ax, 0x0720
     mov ecx, PANEL_WIDTH
     rep stosw
-    mov edi, PANEL_START + 160 * 2
+    mov edi, PANEL_START + 160
 
     cmp byte [working], 0
     jne .working_message
 
-.hint_message:
-    mov esi, hint_message
-    call print_string
-    jmp  .next
-.working_message:
-    mov esi, working_message
-    call print_string
-
-.next:
-    mov edi, PANEL_START + 160
     mov al, [rtc_hour]  ; 時計表示
     call print_dec_byte
 
@@ -114,6 +95,10 @@ clock_update:
     mov al, [rtc_sec]
     call print_dec_byte
     jmp .done
+
+.working_message:
+    mov esi, working_message
+    call print_string
 
 .done:
     popad
@@ -216,9 +201,6 @@ working db 0
 working_until db 0
 screen_dirty db 1
 new_input db 0
-; VGAテキストモードではUTF-8の矢印を1文字として描画できないため、
-; 表示文字列はASCIIだけにする。
-hint_message db 'Alt+Left/Right: switch panel', 0
 working_message db 'still working!', 0
 
 times 512-($-$$) db 0   ; 1セクタ（512バイト）に調整

@@ -1,5 +1,5 @@
 ; minesweeper.asm - kernel copies this image to 0x2000 and calls it once per tick
-[ORG 0x5000]
+[ORG 0x2000]
 [BITS 32]
 
 VIDEO        EQU 0xB8000
@@ -8,12 +8,8 @@ BOARD_OFFSET EQU PANEL_START + 160 * 2
 SAFE_CELLS   EQU 54
 MINE_COUNT   EQU 10
 PANEL_WIDTH  EQU 39
-GAME_KEY     EQU 0x3001
-SHUTDOWN_REQUESTED EQU 0x3002
 
 start:
-    mov al, [GAME_KEY]
-    mov byte [GAME_KEY], 0
     cmp byte [initialized], 0
     jne .poll_input
     call reset_game
@@ -44,8 +40,8 @@ start:
 .confirm_quit:
     cmp al, 0x31                    ; N
     je .dismiss_quit
-    mov byte [SHUTDOWN_REQUESTED], 1
-    jmp .draw
+    mov al, 1                       ; ask the kernel to shut down
+    ret
 .dismiss_quit:
     mov byte [quit_prompt], 0
     mov byte [screen_dirty], 1
@@ -103,7 +99,8 @@ start:
     call print_board
     mov byte [screen_dirty], 0
 .done:
-    jmp start                       ; 次の入力まで独立タスクとして継続
+    xor al, al                      ; continue running
+    ret
 
 ; Start a new game with a fresh mine layout.
 reset_game:
@@ -222,7 +219,7 @@ print_board:
     ; そのまま残す。
     mov edi, PANEL_START
     mov ax, 0x0720
-    mov ebp, 24                    ; 最下行はカーネルのフォーカスマーカー用に予約
+    mov ebp, 25
 .clear_row:
     mov ecx, PANEL_WIDTH
     rep stosw
