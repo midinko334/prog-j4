@@ -240,7 +240,7 @@ print_board:
     push ecx
     mov ecx, 8
 .cell:
-    mov al, '#'
+    mov al, '.'
     cmp byte [opened + ebx], 0
     je .color
     cmp byte [mine_map + ebx], 0

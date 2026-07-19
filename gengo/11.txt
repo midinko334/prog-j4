@@ -1,0 +1,44 @@
+1 FIRST(+)
+FIRST(+)={+}
+
+2 FOLLOW(EA) 
+FOLLOW(EA)={;}
+
+3 DIRECTOR(EA)
+DIRECTOR(EA)={id, ;}
+
+4 FOLLOW集合を求める
+すべての構文変数の FOLLOW を空にし、開始記号Sにだけ入力終端記号$を入れる
+FOLLOW(S)={$}\text{FOLLOW}(S) = \{ \$ \}FOLLOW(S)={$}
+生成規則の右辺に出てくる構文変数Zについて、「Zの直後に来る記号」をFOLLOW(Z)に追加していく
+　S → SC | SW | SA
+FOLLOW(SC)+=FOLLOW(S)
+FOLLOW(SW)+=FOLLOW(S)
+FOLLOW(SA)+=FOLLOW(S)
+　SC → { S 〚 S 〛 }
+FOLLOW(S)+=FIRST(S)∪{}}
+　SW → while ( E ) S
+FOLLOW(E)+={)}
+FOLLOW(S)+=FOLLOW(SW)
+　SA → EA ;
+FOLLOW(EA)+={;}
+　EA → id = E | ε
+FOLLOW(E)+=FOLLOW(EA)
+　E → T 〚 + T 〛
+FOLLOW(T)+={+}∪FOLLOW(E)
+　T → F 〚 * F 〛
+FOLLOW(F)+={∗}∪FOLLOW(T)
+　F → id | ( E )
+FOLLOW(E)+={)}
+上のルールを繰り返し適用して値が安定するまで計算する
+
+最終結果
+S　　{ $, {, while, id, ; , } }
+SC　 { $, {, while, id, ; , } }
+SW　 { $, {, while, id, ; , } }
+SA　 { $, {, while, id, ; , } }
+EA　 { ; }
+E　　{ ), ; }
+T　　{ +, ), ; }
+F　　{ *, +, ), ; }
+

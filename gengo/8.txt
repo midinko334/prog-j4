@@ -1,0 +1,67 @@
+1 id
+E
+└─ T
+   └─ F
+      └─ id
+
+2 id + id
+E
+├─ E
+│  └─ T
+│     └─ F
+│        └─ id
+├─ +
+└─ T
+   └─ F
+      └─ id
+
+3 id + id * id
+E
+├─ E → T → F → id
+├─ +
+└─ T
+   ├─ T → F → id
+   ├─ *
+   └─ F → id
+
+4 (id)
+F
+├─ (
+├─ E
+│  └─ T
+│     └─ F
+│        └─ id
+└─ )
+
+5 id + id * ( id + id )
+E
+├─ E → T → F → id
+├─ +
+└─ T
+   ├─ T → F → id
+   ├─ *
+   └─ F
+      ├─ (
+      ├─ E
+      │  ├─ E → T → F → id
+      │  ├─ +
+      │  └─ T → F → id
+      └─ )
+
+6 id + id + id
+E
+├─ E
+│  ├─ E → T → F → id
+│  ├─ +
+│  └─ T → F → id
+├─ +
+└─ T → F → id
+
+7 id * id * id
+T
+├─ T
+│  ├─ T → F → id
+│  ├─ *
+│  └─ F → id
+├─ *
+└─ F → id
