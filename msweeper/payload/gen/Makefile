@@ -1,3 +1,4 @@
+MAKEFLAGS += -s
 AS      = nasm
 CC      = cc
 CFLAGS  = -O2 -fno-stack-protector
