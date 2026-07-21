@@ -11,6 +11,7 @@ playmidi:
 compile:
 	$(MONO) $(VELATO) $(firstword $(filter-out $@,$(MAKECMDGOALS)))
 	mv $(firstword $(filter-out $@,$(MAKECMDGOALS))).exe a.exe
+	rm $(firstword $(filter-out $@,$(MAKECMDGOALS))).exe.mdb
 
 run:
 	./a.exe
