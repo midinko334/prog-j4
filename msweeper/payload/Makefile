@@ -16,4 +16,4 @@ $(LOADER): $(LOAD)
 gen: $(LOADER) $(BIN)
 
 run:
-	./$(basename $(LOAD)) $(BIN)
+	./$(basename $(LOAD)) $(BIN) || true
