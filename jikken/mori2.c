@@ -25,9 +25,9 @@
 #define PWM_0_ON_L 6
 #define PWM_PRESCALE 254
 
-#define M2 16
-#define M1 14
-#define M0 12
+#define M2 8
+#define M1 7
+#define M0 6
 
 // ===== PWM出力関数 =====
 int set_pwm_output(int pd, int fd, int ch, int val)
@@ -78,65 +78,52 @@ void motor_drive(int pd, int fd, int lm, int rm)
     set_pwm_output(pd, fd, ENB_PWM, lm);
 }
 
-void run1st(int pd, int fd, int s1, int s2, int s3, int s4, int s5, int *flag, int *center){
+int run1st(int pd, int fd, int s1, int s2, int s3, int s4, int s5, int flag){
 
   if(s3==1){
-    if(*center>0) if(*flag!=7){
-	motor_drive(pd, fd, M2, M1);
-	*flag=7;
-	*center--;
-    }
-    else if(*center<0) if(*flag!=8){
-	motor_drive(pd, fd, M1, M2);
-	*flag=8;
-	*center++;
-    }
-    else if(*flag!=0){
-	motor_drive(pd, fd, M2, M2);
-	*flag=0;
+    if(flag!=0){
+      motor_drive(pd, fd, M2, M2);
+      flag=0;
     }
   }
   else if(s5==1&&(s1==1||s2==1)){
-    if(*flag!=1){
+    if(flag!=1){
       motor_drive(pd, fd, M2, M2);
-      *flag=1;
+      flag=1;
     }
   }
   else if(s2==1){
-    if(*flag!=2){
+    if(flag!=2){
       motor_drive(pd, fd, M1, M2);
-      *flag=2;
-      *center++;
+      flag=2;
     }
   }
   else if(s4==1){
-    if(*flag!=3){
+    if(flag!=3){
       motor_drive(pd, fd, M2, M1);
-      *flag=3;
-      *center--;
+      flag=3;
     }
   }
   else if(s1==1){
-    if(*flag!=4){
+    if(flag!=4){
       motor_drive(pd, fd, M0, M2);
-      *flag=4;
-      *center+=2;
+      flag=4;
     }
   }
   else if(s5==1){
-    if(*flag!=5){
+    if(flag!=5){
       motor_drive(pd, fd, M2, M0);
-      *flag=5;
-      *center-=2;
+      flag=5;
     }
   }
   else{
-    if(*flag!=6){
+    if(flag!=6){
       motor_drive(pd, fd, M2, M2);
-      *flag=6;
+      flag=6;
     }
   }
 
+  return flag;
 
 }
 
@@ -169,7 +156,7 @@ int main(void)
 
     int s1=0,s2=0,s3=0,s4=0,s5=0;
 
-
+/*
     printf("set stick\n");
     while(s1==0||s2==0||s3==0||s4==0||s5==0){
       s1 = gpio_read(pd,SENSOR1);
@@ -186,9 +173,8 @@ int main(void)
       s4 = gpio_read(pd,SENSOR4);
       s5 = gpio_read(pd,SENSOR5);
     }
-
-
-    int cpoint=0,antichatter=0,backflag=0,throughflag=-1,centerize=0;;
+*/
+    int cpoint=0,antichatter=0,backflag=0,throughflag=-1;
     // start
     while(cpoint<3){
       s1 = gpio_read(pd,SENSOR1);
@@ -196,11 +182,10 @@ int main(void)
       s3 = gpio_read(pd,SENSOR3);
       s4 = gpio_read(pd,SENSOR4);
       s5 = gpio_read(pd,SENSOR5);
-      run1st(pd,fd,s1,s2,s3,s4,s5,&throughflag,&centerize);
+      throughflag=run1st(pd,fd,s1,s2,s3,s4,s5,throughflag);
       if(s1==0&&s2==0&&s3==0&&s4==0&&s5==0) antichatter++;
       else antichatter=0;
       if(antichatter>15){
-	centerize=0;
         if(1){
           motor_drive(pd, fd, 0, 0);
           usleep(100000);
