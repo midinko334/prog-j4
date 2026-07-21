@@ -11,22 +11,22 @@ CELL_FLAGGED  equ 0x40
 CELL_OPEN     equ 0x20
 CELL_MASK     equ 0x1F
 
-board:
-    times BOARD_WIDTH * BOARD_HEIGHT db CELL_HIDDEN
+board equ 0x7E00
 
 seed dw 0x1234
 
 rand:
     mov ax, [seed]
-    shl ax, 7
-    xor [seed], ax
-    mov ax, [seed]
-    shr ax, 9
-    xor [seed], ax
-    mov ax, [seed]
-    shl ax, 8
-    xor [seed], ax
-    mov ax, [seed]
+    mov di, ax
+    shl di, 7
+    xor ax, di
+    mov di, ax
+    shr di, 9
+    xor ax, di
+    mov di, ax
+    shl di, 8
+    xor ax, di
+    mov [seed], ax
     ret
 
 rand_range:
@@ -108,7 +108,6 @@ calc_all_neighbors:
     test byte [board + di], CELL_MINE
     jnz .skip
     call count_neighbors
-    and byte [board + di], ~CELL_MASK
     or byte [board + di], al
 .skip:
     test di, di
@@ -132,20 +131,16 @@ putchar:
     int 0x10
     ret
 
-puts:
-    lodsb
-    test al, al
-    jz .done
-    call putchar
-    jmp puts
-.done:
-    ret
-
 putdigit:
     add al, '0'
     call putchar
     ret
 
+reveal db 0
+
+; draw_board also handles the "reveal all" (game-over/win) display,
+; selected via the `reveal` flag, so a separate show_all_mines routine
+; is no longer needed.
 draw_board:
     call clear_screen
     mov dh, 1
@@ -156,6 +151,8 @@ draw_board:
     mov di, dx
     call cell_index
     mov al, [board + di]
+    cmp byte [reveal], 0
+    jne .reveal_mode
     test al, CELL_OPEN
     jz .hidden
     test al, CELL_MINE
@@ -169,6 +166,9 @@ draw_board:
     mov al, 'F'
     call putchar
     jmp .next
+.reveal_mode:
+    test al, CELL_MINE
+    jz .dot
 .mine:
     mov al, '*'
     call putchar
@@ -195,11 +195,17 @@ get_coord:
     sub al, '0'
     ret
 
+input_x db 0
+input_y db 0
+
 handle_input:
     call get_coord
     mov [input_x], al
     call get_coord
     mov [input_y], al
+    mov dl, [input_x]
+    mov dh, [input_y]
+    call cell_index
     call getch
     cmp al, 'o'
     je .open
@@ -209,24 +215,18 @@ handle_input:
     je .quit
     jmp .done
 .open:
-    mov dl, [input_x]
-    mov dh, [input_y]
-    call cell_index
     mov al, [board + di]
     test al, CELL_OPEN
     jnz .done
     test al, CELL_FLAGGED
     jnz .done
     test al, CELL_MINE
-    jnz .game_over
+    jnz .end_game
     or byte [board + di], CELL_OPEN
     call check_win
-    jc .win
+    jc .end_game
     jmp .done
 .flag:
-    mov dl, [input_x]
-    mov dh, [input_y]
-    call cell_index
     test byte [board + di], CELL_OPEN
     jnz .done
     xor byte [board + di], CELL_FLAGGED
@@ -234,12 +234,9 @@ handle_input:
 .quit:
     mov al, 1
     ret
-.win:
-    call show_all_mines
-    mov al, 1
-    ret
-.game_over:
-    call show_all_mines
+.end_game:
+    mov byte [reveal], 1
+    call draw_board
     mov al, 1
     ret
 .done:
@@ -271,42 +268,18 @@ check_win:
     stc
     ret
 
-show_all_mines:
-    call clear_screen
-    mov dh, 1
-.row_loop:
-    mov dl, 1
-.col_loop:
-    call set_cursor
-    mov di, dx
-    call cell_index
-    mov al, [board + di]
-    test al, CELL_MINE
-    jnz .mine
-    mov al, '.'
-    call putchar
-    jmp .next
-.mine:
-    mov al, '*'
-    call putchar
-.next:
-    inc dl
-    cmp dl, BOARD_WIDTH+1
-    jb .col_loop
-    inc dh
-    cmp dh, BOARD_HEIGHT+1
-    jb .row_loop
-    ret
-
-input_x db 0
-input_y db 0
-
 start:
     xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
     mov sp, 0x7C00
+
+    ; board isn't stored in the image, so zero it out in RAM here
+    mov di, board
+    mov cx, BOARD_WIDTH * BOARD_HEIGHT
+    xor al, al
+    rep stosb
 
     mov ax, 0x40
     mov es, ax
@@ -323,7 +296,9 @@ game_loop:
     jz game_loop
 
     call getch
-    jmp 0xFFFF:0
+    cli
+    hlt
+    jmp $
 
 times 510 - ($ - $$) db 0
 dw 0xAA55

@@ -14,6 +14,8 @@ IMG        = disk.img
 
 # Default
 all: $(BOOT)
+#	dd if=/dev/zero of=$(IMG) bs=512 count=2880 2>/dev/null
+#	dd if=$(BOOT) of=$(IMG) conv=notrunc 2>/dev/null
 	cat $(BOOT) > disk.img
 
 # Assemble assembly to bin
