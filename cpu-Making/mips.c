@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mips_sim.h"
 
 uint32_t GPR[NUM_GPR];
 uint32_t PC;
