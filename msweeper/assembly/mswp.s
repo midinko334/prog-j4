@@ -1182,6 +1182,8 @@ finish_game:
     ret
 
 _start:
+    leaq  clear(%rip), %rsi
+    call  print_str
     subq  $GLOBALS_SIZE, %rsp
     movq  %rsp, %rbp
     leaq  msg_title(%rip), %rsi
