@@ -13,15 +13,12 @@ BOOT       = boot.bin
 IMG        = disk.img
 
 # Default
-all: compile
+all: $(BOOT)
+	cat $(BOOT) > disk.img
 
 # Assemble assembly to bin
 %.bin: %.asm
 	$(NASM) $(NFLAGS) $< -o $@
-
-# Compile
-compile: $(BOOT)
-	cat $(BOOT) > disk.img
 
 # Run
 run:

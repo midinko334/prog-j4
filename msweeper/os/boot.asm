@@ -1,50 +1,329 @@
-; boot.asm
+BITS 16
+ORG 0x7C00
 
-[ORG 0x7C00]            ; ブートセクタのロード先アドレス
-[BITS 16]               ; 16ビットリアルモードで動作
+BOARD_WIDTH  equ 8
+BOARD_HEIGHT equ 8
+NUM_MINES    equ 10
 
-; プログラムの開始点
+CELL_HIDDEN   equ 0x00
+CELL_MINE     equ 0x80
+CELL_FLAGGED  equ 0x40
+CELL_OPEN     equ 0x20
+CELL_MASK     equ 0x1F
+
+board:
+    times BOARD_WIDTH * BOARD_HEIGHT db CELL_HIDDEN
+
+seed dw 0x1234
+
+rand:
+    mov ax, [seed]
+    shl ax, 7
+    xor [seed], ax
+    mov ax, [seed]
+    shr ax, 9
+    xor [seed], ax
+    mov ax, [seed]
+    shl ax, 8
+    xor [seed], ax
+    mov ax, [seed]
+    ret
+
+rand_range:
+    call rand
+    xor dx, dx
+    div bx
+    mov ax, dx
+    ret
+
+place_mines:
+    mov cx, NUM_MINES
+.loop:
+    mov bx, BOARD_WIDTH * BOARD_HEIGHT
+    call rand_range
+    mov bx, ax
+    test byte [board + bx], CELL_MINE
+    jnz .loop
+    or byte [board + bx], CELL_MINE
+    dec cx
+    jnz .loop
+    ret
+
+cell_index:
+    mov di, dx
+    imul di, BOARD_WIDTH
+    add di, ax
+    ret
+
+neighbor_offsets:
+    db -1,-1, -1,0, -1,1
+    db  0,-1,        0,1
+    db  1,-1,  1,0,  1,1
+neighbor_count equ 8
+
+count_neighbors:
+    push di
+    push cx
+    push si
+    xor cx, cx
+    mov si, neighbor_offsets
+    mov bx, neighbor_count
+.loop:
+    movsx dx, byte [si]
+    inc si
+    movsx ax, byte [si]
+    inc si
+    push di
+    call cell_index
+    mov di, ax
+    pop ax
+    mov dx, ax
+    shr dx, 8
+    mov ax, di
+    cmp dx, 0
+    jl .skip
+    cmp dx, BOARD_HEIGHT-1
+    jg .skip
+    cmp ax, 0
+    jl .skip
+    cmp ax, BOARD_WIDTH-1
+    jg .skip
+    call cell_index
+    test byte [board + di], CELL_MINE
+    jz .skip
+    inc cx
+.skip:
+    dec bx
+    jnz .loop
+    mov al, cl
+    pop si
+    pop cx
+    pop di
+    ret
+
+calc_all_neighbors:
+    mov di, BOARD_WIDTH * BOARD_HEIGHT
+.loop:
+    dec di
+    test byte [board + di], CELL_MINE
+    jnz .skip
+    call count_neighbors
+    and byte [board + di], ~CELL_MASK
+    or byte [board + di], al
+.skip:
+    test di, di
+    jnz .loop
+    ret
+
+clear_screen:
+    mov ax, 0x0003
+    int 0x10
+    ret
+
+set_cursor:
+    mov ah, 0x02
+    mov bh, 0
+    int 0x10
+    ret
+
+putchar:
+    mov ah, 0x0E
+    mov bh, 0
+    int 0x10
+    ret
+
+puts:
+    lodsb
+    test al, al
+    jz .done
+    call putchar
+    jmp puts
+.done:
+    ret
+
+putdigit:
+    add al, '0'
+    call putchar
+    ret
+
+draw_board:
+    call clear_screen
+    mov dh, 1
+.row_loop:
+    mov dl, 1
+.col_loop:
+    call set_cursor
+    mov di, dx
+    call cell_index
+    mov al, [board + di]
+    test al, CELL_OPEN
+    jz .hidden
+    test al, CELL_MINE
+    jnz .mine
+    and al, CELL_MASK
+    call putdigit
+    jmp .next
+.hidden:
+    test al, CELL_FLAGGED
+    jz .dot
+    mov al, 'F'
+    call putchar
+    jmp .next
+.mine:
+    mov al, '*'
+    call putchar
+    jmp .next
+.dot:
+    mov al, '.'
+    call putchar
+.next:
+    inc dl
+    cmp dl, BOARD_WIDTH+1
+    jb .col_loop
+    inc dh
+    cmp dh, BOARD_HEIGHT+1
+    jb .row_loop
+    ret
+
+getch:
+    mov ah, 0
+    int 0x16
+    ret
+
+get_coord:
+    call getch
+    sub al, '0'
+    ret
+
+handle_input:
+    call get_coord
+    mov [input_x], al
+    call get_coord
+    mov [input_y], al
+    call getch
+    cmp al, 'o'
+    je .open
+    cmp al, 'f'
+    je .flag
+    cmp al, 'q'
+    je .quit
+    jmp .done
+.open:
+    mov dl, [input_x]
+    mov dh, [input_y]
+    call cell_index
+    mov al, [board + di]
+    test al, CELL_OPEN
+    jnz .done
+    test al, CELL_FLAGGED
+    jnz .done
+    test al, CELL_MINE
+    jnz .game_over
+    or byte [board + di], CELL_OPEN
+    call check_win
+    jc .win
+    jmp .done
+.flag:
+    mov dl, [input_x]
+    mov dh, [input_y]
+    call cell_index
+    test byte [board + di], CELL_OPEN
+    jnz .done
+    xor byte [board + di], CELL_FLAGGED
+    jmp .done
+.quit:
+    mov al, 1
+    ret
+.win:
+    call show_all_mines
+    mov al, 1
+    ret
+.game_over:
+    call show_all_mines
+    mov al, 1
+    ret
+.done:
+    xor al, al
+    ret
+
+check_win:
+    mov cx, BOARD_WIDTH * BOARD_HEIGHT
+    mov bx, cx
+    sub bx, NUM_MINES
+    xor dx, dx
+    mov si, board
+.loop:
+    mov al, [si]
+    test al, CELL_MINE
+    jnz .skip
+    test al, CELL_OPEN
+    jz .skip
+    inc dx
+.skip:
+    inc si
+    dec cx
+    jnz .loop
+    cmp dx, bx
+    je .win
+    clc
+    ret
+.win:
+    stc
+    ret
+
+show_all_mines:
+    call clear_screen
+    mov dh, 1
+.row_loop:
+    mov dl, 1
+.col_loop:
+    call set_cursor
+    mov di, dx
+    call cell_index
+    mov al, [board + di]
+    test al, CELL_MINE
+    jnz .mine
+    mov al, '.'
+    call putchar
+    jmp .next
+.mine:
+    mov al, '*'
+    call putchar
+.next:
+    inc dl
+    cmp dl, BOARD_WIDTH+1
+    jb .col_loop
+    inc dh
+    cmp dh, BOARD_HEIGHT+1
+    jb .row_loop
+    ret
+
+input_x db 0
+input_y db 0
+
 start:
-    mov ax, 0           ; セグメントレジスタを初期化
-    mov ds, ax          ; データセグメントを設定
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7C00
 
-    ; 画面クリア
-    mov ax, 0xB800      ; VGAセグメント
-    mov es, ax          ; エクストラセグメントを設定
-    mov bx, 0x0000      ; オフセットを初期化
-    mov ax, 0x0720      ; al: スペース（0x20）、ah: 属性（0x07: 白文字/黒背景）
-    mov cx, 2000        ; カウンタレジスタを設定（80x25文字）
-clear_loop:
-    mov [es:bx], ax     ; ビデオメモリに書き込み
-    add bx, 2           ; 次の位置へ
-    loop clear_loop     ; CX をデクリメントし、0 になるまで繰り返し
+    mov ax, 0x40
+    mov es, ax
+    mov ax, [es:0x6C]
+    mov [seed], ax
 
-    ; 文字列表示
-    mov ax, 0xB800      ; VGAセグメント
-    mov es, ax          ; エクストラセグメントを設定
-    mov bx, 0x0000      ; オフセットを初期化
-    mov si, msg         ; msgアドレスを設定
-    mov ah, 0x07        ; 属性（0x07: 白文字/黒背景）を設定
+    call place_mines
+    call calc_all_neighbors
 
-; 文字列表示ループ
-print_loop:
-    lodsb               ; SIから1バイトをALに読み込み、SIを進める
-    cmp al, 0           ; 文字列終端（NULL文字）をチェック
-    je halt             ; 終了
-    mov [es:bx], ax     ; ビデオメモリに書き込み
-    add bx, 2           ; 次の位置へ
-    jmp print_loop      ; 次の文字へ
+game_loop:
+    call draw_board
+    call handle_input
+    test al, al
+    jz game_loop
 
-; システム停止
-halt:
-    cli                 ; 割り込みを無効化
-    hlt                 ; CPUを停止
-    jmp halt            ; hltから復帰した場合に備えてループ
+    call getch
+    jmp 0xFFFF:0
 
-; データ領域
-msg:
-    db "HelloWorld", 0  ; 表示文字列と文字列終端（NULL文字）
-
-; ブートセクタの調整と署名
-times 510-($-$$) db 0   ; 残りをゼロ埋めし、全体を512バイトにする
-dw 0xAA55               ; ブートセクタの署名
+times 510 - ($ - $$) db 0
+dw 0xAA55
