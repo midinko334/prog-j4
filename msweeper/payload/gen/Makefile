@@ -5,7 +5,7 @@ LOAD    = loader.c
 LOADER  = $(basename $(LOAD))
 BIN     = $(filter %.bin,$(MAKECMDGOALS))
 
-.PHONY: run clean
+.PHONY: run gen
 
 %.bin: %.asm
 	$(AS) -f bin -o $@ $<
