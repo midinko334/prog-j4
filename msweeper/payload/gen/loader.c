@@ -4,9 +4,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-/* .bss (未初期化データ) 用に多めに余白を確保しておく。
-   nasm -f bin はファイルにbss分のバイトを書き出さないため、
-   ファイルサイズ通りにmmapするとbssアクセスでSEGVする。 */
 #define BSS_PADDING (64 * 1024)
 
 int main(int argc, char **argv) {
@@ -24,17 +21,10 @@ int main(int argc, char **argv) {
     fread(mem, 1, size, fp);
     fclose(fp);
 
-    /* コード+bss領域全体をRWXにする(テスト用ローダーとして簡略化)。
-       本格的にW^Xを守るなら .bss サイズを事前計算して
-       ページ境界でRXとRWを分けるべきだが、ここでは省略。 */
     if (mprotect(mem, total, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
         perror("mprotect");
         return 1;
     }
-
-    fprintf(stderr, "[*] loaded at %p (code=%ld bytes, +%d bss padding)\n",
-            mem, size, BSS_PADDING);
-    fprintf(stderr, "[*] clearing registers and jumping in...\n");
 
     asm volatile(
         "push %0\n\t"
