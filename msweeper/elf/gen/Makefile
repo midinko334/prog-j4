@@ -8,9 +8,9 @@ LINK = link.ld
 SSP  = sstrip.py
 OVP  = overlap.py
 
-.PHONY: compile run
+.PHONY: all run clean
 
-compile: $(OBJS)
+all: $(OBJS)
 	$(LD) -o $(basename $(OBJS)).lout $(OBJS) -T link.ld -nostdlib -N -s -no-pie
 	python3 $(SSP) $(basename $(OBJS)).lout $(basename $(OBJS)).sout
 	python3 $(OVP) $(basename $(OBJS)).sout $(basename $(OBJS)).out

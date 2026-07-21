@@ -1,5 +1,6 @@
+BITS 64
+
 default rel
-;%define SYS_read      0
 %define SYS_write     1
 %define SYS_getrandom 318
 %define SYS_exit      60
@@ -14,10 +15,9 @@ global _start
 
 ; ------------------------------------------------------------
 _start:
-    mov r15d, gameflag
+    lea r15, [rel gameflag]
     mov bl, 10
     mov ecx, esp
-;    xor r14d, r14d
 .place_loop:
     lea ecx, [rcx + rcx*4 + 1]
     mov eax, ecx
@@ -27,7 +27,6 @@ _start:
     dec ebx
     jnz .place_loop
 .place_done:
-;    xor r13d, r13d
 
 ; ------------------------------------------------------------
 main_loop:
@@ -79,10 +78,10 @@ count_near:
     jz .next_dc
 .checkbounds:
     lea eax, [rsi + rdx]           ; nc
-    cmp eax, 8                     ; unsigned: catches nc<0 and nc>7 in one test
+    cmp eax, 8
     jae .next_dc
     lea eax, [rcx + rbp]           ; nr
-    cmp eax, 8                     ; unsigned: catches nr<0 and nr>7 in one test
+    cmp eax, 8
     jae .next_dc
     shl eax, 3
     add eax, esi
@@ -101,7 +100,7 @@ count_near:
     ret
 
 print_board:
-    lea edi, [r15 + 65]
+    lea rdi, [r15 + 65]
     push rdi
     mov al, ' '
     stosb
@@ -156,13 +155,13 @@ print_board:
     jl .row_loop
 .row_done:
     pop rax
-    sub edi, eax
+    sub rdi, rax
     mov edx, edi
-    mov esi, eax
+    mov rsi, rax
 
 write:
     push 1
     pop rax
-    mov edi, eax
+    mov edi, eax                ; fd=1
     syscall
     ret
