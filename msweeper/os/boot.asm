@@ -5,9 +5,7 @@ BOARD_WIDTH  equ 8
 BOARD_HEIGHT equ 8
 NUM_MINES    equ 10
 
-CELL_HIDDEN   equ 0x00
 CELL_MINE     equ 0x80
-CELL_FLAGGED  equ 0x40
 CELL_OPEN     equ 0x20
 CELL_MASK     equ 0x1F
 
@@ -16,20 +14,17 @@ board equ 0x7E00
 start:
     xor ax, ax
     mov ds, ax
-    mov es, ax
     mov ss, ax
     mov sp, 0x7C00
 
-    ; board を RAM 上でゼロクリア（reveal はイメージ内の db 0 で既に0）
     mov di, board
     mov cx, BOARD_WIDTH * BOARD_HEIGHT
     xor al, al
     rep stosb
 
-    mov ax, 0x40
-    mov es, ax
-    mov ax, [es:0x6C]
-    or al, 1              ; seedが0だとrandが0に固定され無限ループするため回避
+    int 0x1A
+    mov ax, dx
+    or al, 1
     mov [seed], ax
 
     call place_mines
@@ -41,7 +36,6 @@ game_loop:
     test al, al
     jz game_loop
 
-    call getch
     cli
     hlt
     jmp $
@@ -82,54 +76,31 @@ place_mines:
     jnz .loop
     ret
 
-cell_index:
-    mov di, dx
-    imul di, BOARD_WIDTH
-    add di, ax
-    ret
-
 neighbor_offsets:
     db -1,-1, -1,0, -1,1
     db  0,-1,        0,1
     db  1,-1,  1,0,  1,1
-neighbor_count equ 8
 
 count_neighbors:
-    ; 入力: di = 調査するセルのインデックス
-    ; 出力: al = 周囲の地雷数 (0～8)
-    push bx
-    push cx
-    push dx
-    push si
     push di
-
-    ; 現在の行・列を取得 (row = di / BOARD_WIDTH, col = di % BOARD_WIDTH)
     mov ax, di
     xor dx, dx
     mov bx, BOARD_WIDTH
-    div bx               ; ax = 行, dx = 列 (余り)
-    mov si, ax           ; si = 行 (row) を保存
-    ; dx = 列 (col) はこのまま使う
-
-    xor cx, cx           ; 地雷カウンタ
+    div bx
+    mov si, ax
+    xor cx, cx
     mov bx, neighbor_offsets
-    mov di, 8            ; ループ回数
-
+    mov di, 8
 .loop:
-    movsx ax, byte [bx]  ; 行オフセット
+    movsx ax, byte [bx]
     inc bx
-    movsx bp, byte [bx]  ; 列オフセット
+    movsx bp, byte [bx]
     inc bx
-
-    ; 隣接セルの行 = si + ax, 列 = dx + bp
     push si
     add ax, si
-    mov si, ax           ; si = 隣接行
-
+    mov si, ax
     push dx
-    add dx, bp           ; dx = 隣接列
-
-    ; 範囲チェック
+    add dx, bp
     test si, si
     jl .skip
     cmp si, BOARD_HEIGHT
@@ -138,31 +109,25 @@ count_neighbors:
     jl .skip
     cmp dx, BOARD_WIDTH
     jge .skip
-
-    ; 有効なセル → board のインデックスを計算
     push ax
     mov ax, si
-    shl ax, 3            ; ax = si * WIDTH (WIDTH=8)
-    add ax, dx           ; ax = インデックス
+    shl ax, 3
+    add ax, dx
     mov bp, ax
     pop ax
 
     test byte [board + bp], CELL_MINE
     jz .skip
-    inc cx               ; 地雷発見
+    inc cx
 .skip:
-    pop dx               ; 列を復元
-    pop si               ; 行を復元
+    pop dx
+    pop si
     dec di
     jnz .loop
 
-    mov al, cl           ; 戻り値
+    mov al, cl
 
     pop di
-    pop si
-    pop dx
-    pop cx
-    pop bx
     ret
 
 calc_all_neighbors:
@@ -171,8 +136,8 @@ calc_all_neighbors:
     dec di
     test byte [board + di], CELL_MINE
     jnz .skip
-    call count_neighbors       ; al = 隣接地雷数
-    or byte [board + di], al   ; 下位5ビットに格納
+    call count_neighbors
+    or byte [board + di], al
 .skip:
     test di, di
     jnz .loop
@@ -189,30 +154,22 @@ set_cursor:
     int 0x10
     ret
 
-putchar:
-    mov ah, 0x0E
-    mov bh, 0
-    int 0x10
-    ret
-
-putdigit:
-    add al, '0'
-    call putchar
-    ret
-
 reveal db 0
+cursor db 0
 
-; draw_board also handles the "reveal all" (game-over/win) display,
-; selected via the `reveal` flag, so a separate show_all_mines routine
-; is no longer needed.
 draw_board:
     call clear_screen
     xor di, di
 .cell_loop:
     mov ax, di
+    cmp al, [cursor]
+    mov bl, 0x07
+    jne .nohi
+    mov bl, 0x70
+.nohi:
     mov cl, al
-    and cl, BOARD_WIDTH-1   ; cl = col (0-based) = di mod 8
-    shr ax, 3               ; al = row (0-based) = di / 8
+    and cl, BOARD_WIDTH-1
+    shr ax, 3
     mov dh, al
     inc dh
     mov dl, cl
@@ -222,28 +179,24 @@ draw_board:
     cmp byte [reveal], 0
     jne .reveal_mode
     test al, CELL_OPEN
-    jz .hidden
+    jz .dot
     test al, CELL_MINE
     jnz .mine
     and al, CELL_MASK
-    call putdigit
-    jmp .next
-.hidden:
-    test al, CELL_FLAGGED
-    jz .dot
-    mov al, 'F'
-    call putchar
-    jmp .next
+    add al, '0'
+    jmp .print
 .reveal_mode:
     test al, CELL_MINE
     jz .dot
 .mine:
     mov al, '*'
-    call putchar
-    jmp .next
+    jmp .print
 .dot:
     mov al, '.'
-    call putchar
+.print:
+    mov ah, 0x09
+    mov cx, 1
+    int 0x10
 .next:
     inc di
     cmp di, BOARD_WIDTH*BOARD_HEIGHT
@@ -255,42 +208,54 @@ getch:
     int 0x16
     ret
 
-get_coord:
-    call getch
-    sub al, '0'
-    ret
-
 handle_input:
-    call get_coord      ; 1文字目 = 行
-    cbw
-    mov dx, ax
-    call get_coord      ; 2文字目 = 列
-    cbw
-    call cell_index
     call getch
-    cmp al, 'o'
+    cmp al, 'w'
+    je .up
+    cmp al, 's'
+    je .down
+    cmp al, 'a'
+    je .left
+    cmp al, 'd'
+    je .right
+    cmp al, ' '
     je .open
-    cmp al, 'f'
-    je .flag
     cmp al, 'q'
     je .quit
     jmp .done
+.up:
+    cmp byte [cursor], BOARD_WIDTH
+    jb .done
+    sub byte [cursor], BOARD_WIDTH
+    jmp .done
+.down:
+    cmp byte [cursor], BOARD_WIDTH*(BOARD_HEIGHT-1)
+    jae .done
+    add byte [cursor], BOARD_WIDTH
+    jmp .done
+.left:
+    mov al, [cursor]
+    and al, BOARD_WIDTH-1
+    jz .done
+    dec byte [cursor]
+    jmp .done
+.right:
+    mov al, [cursor]
+    and al, BOARD_WIDTH-1
+    cmp al, BOARD_WIDTH-1
+    je .done
+    inc byte [cursor]
+    jmp .done
 .open:
+    movzx di, byte [cursor]
     mov al, [board + di]
     test al, CELL_OPEN
-    jnz .done
-    test al, CELL_FLAGGED
     jnz .done
     test al, CELL_MINE
     jnz .end_game
     or byte [board + di], CELL_OPEN
     call check_win
     jc .end_game
-    jmp .done
-.flag:
-    test byte [board + di], CELL_OPEN
-    jnz .done
-    xor byte [board + di], CELL_FLAGGED
 .done:
     xor al, al
     ret
