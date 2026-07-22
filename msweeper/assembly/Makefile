@@ -3,9 +3,9 @@ LD = ld
 
 SRCS = $(filter %.s,$(MAKECMDGOALS))
 OBJS = $(SRCS:.s=.o)
-.PHONY: all run
+.PHONY: as run
 
-all: $(OBJS)
+as: $(OBJS)
 	$(LD) -o a.out $(OBJS)
 	rm *.o
 
