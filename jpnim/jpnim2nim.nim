@@ -22,11 +22,13 @@ import std/unicode except strip
 # 1. 行の読み込み
 # ============================================================
 
-proc readLogicalLines(src: string): seq[string] =
+proc readLogicalLines(src: string): seq[tuple[lineNo: int, text: string]] =
+  var n = 0
   for rawLine in src.splitLines():
     let line = rawLine.strip()
     if line.len > 0:
-      result.add(line)
+      inc n
+      result.add((lineNo: n, text: line))
 
 # ============================================================
 # 2. グルーピング
@@ -41,6 +43,7 @@ type
   LogicalUnit = ref object
     case kind: LUKind
     of luLine:
+      lineNo: int
       text: string
     of luForBlock:
       count: string
@@ -60,18 +63,18 @@ proc extractCount(s, startMark, endMark: string): string =
   let b = s.find(endMark, a)
   result = s[a ..< b]
 
-proc groupLines(lines: seq[string]): seq[LogicalUnit] =
+proc groupLines(lines: seq[tuple[lineNo: int, text: string]]): seq[LogicalUnit] =
   var i = 0
   while i < lines.len:
-    let line = lines[i]
+    let line = lines[i].text
     if line == markStart:
       # ここから 〜 ここまでを##回繰り返す
       inc i
-      var bodyLines: seq[string] = @[]
-      while i < lines.len and not lines[i].startsWith(markEndPrefix):
+      var bodyLines: seq[tuple[lineNo: int, text: string]] = @[]
+      while i < lines.len and not lines[i].text.startsWith(markEndPrefix):
         bodyLines.add(lines[i])
         inc i
-      let count = extractCount(lines[i], markEndPrefix, markEndSuffix)
+      let count = extractCount(lines[i].text, markEndPrefix, markEndSuffix)
       inc i
       result.add(LogicalUnit(kind: luForBlock, count: count,
                               body: groupLines(bodyLines)))
@@ -79,14 +82,15 @@ proc groupLines(lines: seq[string]): seq[LogicalUnit] =
       # 以下を##回繰り返す 〜 ・箇条書き ...
       let count = extractCount(line, markAsPrefix, markAsSuffix)
       inc i
-      var bodyLines: seq[string] = @[]
-      while i < lines.len and lines[i].startsWith(bulletMark):
-        bodyLines.add(lines[i][bulletMark.len ..^ 1].strip())
+      var bodyLines: seq[tuple[lineNo: int, text: string]] = @[]
+      while i < lines.len and lines[i].text.startsWith(bulletMark):
+        bodyLines.add((lineNo: lines[i].lineNo,
+                        text: lines[i].text[bulletMark.len ..^ 1].strip()))
         inc i
       result.add(LogicalUnit(kind: luForBlock, count: count,
                               body: groupLines(bodyLines)))
     else:
-      result.add(LogicalUnit(kind: luLine, text: line))
+      result.add(LogicalUnit(kind: luLine, lineNo: lines[i].lineNo, text: line))
       inc i
 
 # ============================================================
@@ -122,40 +126,74 @@ type
 
 # ============================================================
 # 4. 行パース: 1行の文字列 → 値(まだ省略部分は "" のまま)
+#    曖昧警告: 助詞(区切り文字列)が対象範囲内に複数回出現する場合、
+#    「最後の出現位置」を採用した上で、読み取り結果を警告として記録する。
 # ============================================================
+
+var warnings*: seq[string] = @[]  ## compileJapanim実行ごとにリセットされる警告一覧
+
+proc addWarning(lineNo: int, original: string, tokens: seq[string]) =
+  warnings.add($lineNo & "行目の「" & original & "」は「" & tokens.join("/") &
+               "」、と読み取りました")
+
+proc rfindSplit(s, sep: string): tuple[before, after: string, found, ambiguous: bool] =
+  ## sepの最後の出現位置で s を分割する。
+  ## sepがsに2回以上出現していれば ambiguous=true(どこで区切るか曖昧だった)
+  let idx = s.rfind(sep)
+  if idx < 0:
+    return (s, "", false, false)
+  result = (s[0 ..< idx], s[idx + sep.len .. ^1], true, s.count(sep) > 1)
 
 proc normalizeExpr(s: string): string =
   ## 演算子の全角→半角変換など
   result = s.replace("×", "*").replace("÷", "/")
             .replace("＋", "+").replace("－", "-").strip()
 
-proc parseAssignPart(actionRaw: string): tuple[target, expr: string] =
+proc parseAssignPart(actionRaw: string):
+    tuple[target, expr: string, tokens: seq[string], ambiguous: bool] =
   ## "Cを5にする" / "4にする"(目的語省略) を解析する
   var s = actionRaw
   doAssert s.endsWith("にする"), "「にする」で終わらない文です: " & actionRaw
   s = s[0 ..< s.len - "にする".len]
-  let idx = s.rfind("を")
-  if idx >= 0:
-    result.target = s[0 ..< idx]
-    result.expr = normalizeExpr(s[idx + "を".len .. ^1])
+  let (before, after, found, amb) = rfindSplit(s, "を")
+  if found:
+    result.target = before
+    result.expr = normalizeExpr(after)
+    result.tokens = @[before, "を", after, "に", "する"]
+    result.ambiguous = amb
   else:
     result.target = ""              # 目的語省略 → 後で補完
     result.expr = normalizeExpr(s)
+    result.tokens = @[s, "に", "する"]
+    result.ambiguous = false
 
-proc parseIfLine(line: string): tuple[subj, cond, target, expr: string] =
+proc parseIfLine(line: string):
+    tuple[subj, cond, target, expr: string, tokens: seq[string], ambiguous: bool] =
   ## "もしBが2なら4にする" / "3ならCを5にする" を解析する
   var s = line
   var subj = ""
+  var tokens: seq[string] = @[]
+  var ambiguous = false
   if s.startsWith("もし"):
+    tokens.add("もし")
     s = s["もし".len .. ^1]
-    let gaIdx = s.rfind("が")
-    subj = s[0 ..< gaIdx]
-    s = s[gaIdx + "が".len .. ^1]
-  let naraIdx = s.rfind("なら")
-  let cond = s[0 ..< naraIdx]         # 主語省略時はここが値だけになる
-  let action = s[naraIdx + "なら".len .. ^1]
-  let (target, expr) = parseAssignPart(action)
-  result = (subj, cond, target, expr)
+    let (before, after, found, amb) = rfindSplit(s, "が")
+    doAssert found, "「が」が見つかりません: " & line
+    subj = before
+    s = after
+    tokens.add(subj)
+    tokens.add("が")
+    if amb: ambiguous = true
+  let (condPart, actionPart, foundNara, ambNara) = rfindSplit(s, "なら")
+  doAssert foundNara, "「なら」が見つかりません: " & line
+  let cond = condPart                 # 主語省略時はここが値だけになる
+  tokens.add(cond)
+  tokens.add("なら")
+  if ambNara: ambiguous = true
+  let (target, expr, actionTokens, actionAmb) = parseAssignPart(actionPart)
+  tokens.add(actionTokens)
+  if actionAmb: ambiguous = true
+  result = (subj, cond, target, expr, tokens, ambiguous)
 
 proc replaceLoopCounter(expr, loopVar: string): string =
   if loopVar.len == 0: expr
@@ -164,38 +202,59 @@ proc replaceLoopCounter(expr, loopVar: string): string =
 proc isIfLine(s: string): bool = s.contains("なら")
 proc isFullIf(s: string): bool = s.startsWith("もし")
 
-proc parseSimpleLine(line, loopVar: string): Stmt =
+proc parseSimpleLine(line: string, lineNo: int, loopVar: string): Stmt =
   ## if文以外の1行を Stmt に変換する。
   ## loopVar が空でなければ式中の「ループ回数」をループ変数名に置換する。
   if line.endsWith("を足す"):
     var s = line[0 ..< line.len - "を足す".len]
-    let niIdx = s.rfind("に")
-    let target = if niIdx >= 0: s[0 ..< niIdx] else: ""
-    let exprPart = if niIdx >= 0: s[niIdx + "に".len .. ^1] else: s
-    let expr = replaceLoopCounter(normalizeExpr(exprPart), loopVar)
-    Stmt(kind: skAddAssign, target: target, expr: expr)
+    let (before, after, found, amb) = rfindSplit(s, "に")
+    if found and after.len > 0:
+      # "Xに Yを 足す" : 対象Xも値Yも揃っている通常形
+      if amb: addWarning(lineNo, line, @[before, "に", after, "を", "足す"])
+      let expr = replaceLoopCounter(normalizeExpr(after), loopVar)
+      Stmt(kind: skAddAssign, target: before, expr: expr)
+    else:
+      # 「に」が無い、または区切った結果が空(＝変数名自体に「に」を含むだけ)
+      # → 対象(主語)省略。全体を足す値として扱い、対象は直近の主語で補完する。
+      # 「に」が全く無い場合は曖昧さが無いため警告しない。
+      # 「に」はあるが区切ると空expr(＝変数名の一部だった)場合のみ警告する。
+      if found:
+        addWarning(lineNo, line, @[s, "を", "足す"])
+      let expr = replaceLoopCounter(normalizeExpr(s), loopVar)
+      Stmt(kind: skAddAssign, target: "", expr: expr)
+  elif line.endsWith("に足す"):
+    # "Xに足す" : 対象Xのみ指定され、足す値が省略されている
+    # → 値は直近の目的語(最後に使われた式)で補完する。
+    let target = line[0 ..< line.len - "に足す".len]
+    addWarning(lineNo, line, @[target, "に", "足す"])
+    Stmt(kind: skAddAssign, target: target, expr: "")
   elif line.endsWith("を増やす"):
     Stmt(kind: skIncrement, tgt: line[0 ..< line.len - "を増やす".len])
   elif line.endsWith("を減少させる"):
     Stmt(kind: skDecrement, tgt: line[0 ..< line.len - "を減少させる".len])
   elif line.endsWith("にする"):
-    let (target, expr) = parseAssignPart(line)
+    let (target, expr, tokens, ambiguous) = parseAssignPart(line)
+    if ambiguous: addWarning(lineNo, line, tokens)
     Stmt(kind: skAssign, target: target, expr: replaceLoopCounter(expr, loopVar))
   elif line.startsWith("定数") and line.endsWith("とする"):
     # "定数Aを5とする" → let A = 5
     var s = line["定数".len ..< line.len - "とする".len]
-    let idx = s.rfind("を")
-    doAssert idx >= 0, "「を」が見つかりません: " & line
-    let target = s[0 ..< idx]
-    let expr = replaceLoopCounter(normalizeExpr(s[idx + "を".len .. ^1]), loopVar)
+    let (before, after, found, amb) = rfindSplit(s, "を")
+    doAssert found, "「を」が見つかりません: " & line
+    let target = before
+    let tokens = @["定数", before, "を", after, "と", "する"]
+    if amb: addWarning(lineNo, line, tokens)
+    let expr = replaceLoopCounter(normalizeExpr(after), loopVar)
     Stmt(kind: skLetDecl, target: target, expr: expr)
   elif line.endsWith("とする"):
     # "Bを5とする" → var B = 5
     var s = line[0 ..< line.len - "とする".len]
-    let idx = s.rfind("を")
-    doAssert idx >= 0, "「を」が見つかりません: " & line
-    let target = s[0 ..< idx]
-    let expr = replaceLoopCounter(normalizeExpr(s[idx + "を".len .. ^1]), loopVar)
+    let (before, after, found, amb) = rfindSplit(s, "を")
+    doAssert found, "「を」が見つかりません: " & line
+    let target = before
+    let tokens = @[before, "を", after, "と", "する"]
+    if amb: addWarning(lineNo, line, tokens)
+    let expr = replaceLoopCounter(normalizeExpr(after), loopVar)
     Stmt(kind: skVarDecl, target: target, expr: expr)
   else:
     raise newException(ValueError, "未知の構文です: " & line)
@@ -223,37 +282,45 @@ proc buildStmts(units: seq[LogicalUnit], loopVar: string): seq[Stmt] =
       if isIfLine(u.text) and isFullIf(u.text):
         # "もし〜なら" から始まる if/elif チェーンをまとめて消費する
         var branches: seq[IfBranch] = @[]
-        let (subj, cond, target, expr) = parseIfLine(u.text)
+        let (subj, cond, target, expr, tokens, ambiguous) = parseIfLine(u.text)
+        if ambiguous: addWarning(u.lineNo, u.text, tokens)
         branches.add(IfBranch(subj: subj, cond: cond,
                        body: @[Stmt(kind: skAssign, target: target,
                                     expr: replaceLoopCounter(expr, loopVar))]))
         inc i
         while i < units.len and units[i].kind == luLine and
               isIfLine(units[i].text) and not isFullIf(units[i].text):
-          let (subj2, cond2, target2, expr2) = parseIfLine(units[i].text)
+          let (subj2, cond2, target2, expr2, tokens2, ambiguous2) = parseIfLine(units[i].text)
+          if ambiguous2: addWarning(units[i].lineNo, units[i].text, tokens2)
           branches.add(IfBranch(subj: subj2, cond: cond2,
                          body: @[Stmt(kind: skAssign, target: target2,
                                       expr: replaceLoopCounter(expr2, loopVar))]))
           inc i
         result.add(Stmt(kind: skIf, branches: branches))
       else:
-        result.add(parseSimpleLine(u.text, loopVar))
+        result.add(parseSimpleLine(u.text, u.lineNo, loopVar))
         inc i
 
 # ============================================================
 # 6. 省略補完パス
-#    「主語・目的語が省略されていたら直前に参照した変数を対象にする」
-#    lastVar を左から右・上から下へ流しながら埋めていく
+#    「主語(対象)が省略されていたら直前に参照した変数」
+#    「目的語(値/式)が省略されていたら直前に使われた式」で埋める。
+#    lastVar(直近の主語) / lastExpr(直近の目的語) を
+#    左から右・上から下へ流しながら埋めていく
 # ============================================================
 
-proc resolveOmissions(stmts: seq[Stmt], lastVar: var string) =
+proc resolveOmissions(stmts: seq[Stmt], lastVar, lastExpr: var string) =
   for s in stmts:
     case s.kind
     of skAssign, skAddAssign, skVarDecl, skLetDecl:
       if s.target.len == 0:
-        s.target = lastVar
+        s.target = lastVar          # 主語(対象)省略 → 直近の主語で補完
       else:
         lastVar = s.target
+      if s.expr.len == 0:
+        s.expr = lastExpr           # 目的語(値)省略 → 直近の目的語で補完
+      else:
+        lastExpr = s.expr
     of skIncrement, skDecrement:
       if s.tgt.len == 0:
         s.tgt = lastVar
@@ -265,9 +332,9 @@ proc resolveOmissions(stmts: seq[Stmt], lastVar: var string) =
           br.subj = lastVar
         else:
           lastVar = br.subj
-        resolveOmissions(br.body, lastVar)
+        resolveOmissions(br.body, lastVar, lastExpr)
     of skForBlock:
-      resolveOmissions(s.body, lastVar)
+      resolveOmissions(s.body, lastVar, lastExpr)
 
 # ============================================================
 # 7. コード生成
@@ -365,11 +432,13 @@ proc collectVars(stmts: seq[Stmt], declared, loopVars: var HashSet[string],
 
 proc compileJapanim*(src: string): string =
   loopCounter = 0
+  warnings = @[]
   let lines = readLogicalLines(src)
   let units = groupLines(lines)
   let stmts = buildStmts(units, loopVar = "")
   var lastVar = ""
-  resolveOmissions(stmts, lastVar)
+  var lastExpr = ""
+  resolveOmissions(stmts, lastVar, lastExpr)
 
   # 明示的な宣言(let/var)が無い変数は、先頭で var X=0 として宣言する
   var declared = initHashSet[string]()
@@ -396,6 +465,7 @@ when isMainModule:
 定数Aを5とする
 Bを5とする
 一時退避レジスタをBにする
+つうじににを足す
 なまをををつうじにににする
 Fを3にする
 もしBが2なら4にする
@@ -411,5 +481,16 @@ EをD+E×2にする
 以下を30回繰り返す
 ・Fを増やす
 ・3×B+3を足す
+AにBを足す
+つうじににに足す
+Cを足す
+なまをををにをりににする
 """
-  echo compileJapanim(sample)
+  let code = compileJapanim(sample)
+  if warnings.len > 0:
+    echo "警告:"
+    for w in warnings:
+      echo w
+    echo ""
+    echo "出力コード:"
+  echo code
