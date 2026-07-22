@@ -14,9 +14,9 @@ IMG        = disk.img
 
 # Default
 all: $(BOOT)
+	cat ${BOOT} > ${IMG}
 #	dd if=/dev/zero of=$(IMG) bs=512 count=2880 2>/dev/null
 #	dd if=$(BOOT) of=$(IMG) conv=notrunc 2>/dev/null
-	cat $(BOOT) > disk.img
 
 # Assemble assembly to bin
 %.bin: %.asm
@@ -24,7 +24,7 @@ all: $(BOOT)
 
 # Run
 run:
-	$(QEMU) $(QEMU_FLAGS) -fda $(IMG) -rtc base=localtime
+	$(QEMU) $(QEMU_FLAGS) -drive file=$(IMG),format=raw,if=floppy -boot order=a -rtc base=localtime
 
 # CleanUp
 clean:
