@@ -4,15 +4,19 @@
 ##
 ## パイプライン:
 ##   1. 行の読み込み
-##   2. グルーピング : 「ここから〜ここまでを##回繰り返す」
-##                      「以下を##回繰り返す」+「・」箇条書き
-##                      をひとつの繰り返しブロックにまとめる
+##   2. グルーピング : 「ここから〜ここまでを##回繰り返す」(for)
+##                      「ここから〜ここまでを{条件}になるまで繰り返す」(while-until)
+##                      「ここから〜ここまでを{条件}の間繰り返す」(while-during)
+##                      「以下を...繰り返す」+「・」箇条書き(上記3種の箇条書き版)
+##                      「もし〜なら」(処理省略)+「・」箇条書き(if複数処理)
+##                      をひとつのブロックにまとめる
 ##   3. 行パース     : 各行をキーワード・助詞で分解する
-##   4. Stmt構築     : 「もし〜なら」の連続行を if/elif チェーンにまとめる
+##   4. Stmt構築     : 「もし〜なら」の連続行/箇条書きブロックを if/elif チェーンにまとめる
 ##   5. 省略補完     : 主語・目的語省略時に「直前に参照した変数」で埋める
 ##   6. コード生成   : Stmt木からNimソースを出力する
 ##
-## 表記ゆれ(「〜して」「〜しなさい」等)は今回は未対応。
+## 条件式の比較演算子(未満/以上/以下/より大きい/超)はif文・while文で
+## 共通の parseComparison ヘルパーを使い回す。
 ## ----------------------------------------------------------------
 
 import std/[strutils, sets]
@@ -31,103 +35,7 @@ proc readLogicalLines(src: string): seq[tuple[lineNo: int, text: string]] =
       result.add((lineNo: n, text: line))
 
 # ============================================================
-# 2. グルーピング
-#    ここから〜ここまで / 以下＋箇条書き を木構造(LogicalUnit)にする
-# ============================================================
-
-type
-  LUKind = enum
-    luLine      # 単純な1行
-    luForBlock  # 繰り返しブロック(count回) + 本体
-
-  LogicalUnit = ref object
-    case kind: LUKind
-    of luLine:
-      lineNo: int
-      text: string
-    of luForBlock:
-      count: string
-      body: seq[LogicalUnit]
-
-const
-  markStart     = "ここから"
-  markEndPrefix = "ここまでを"
-  markEndSuffix = "回繰り返す"
-  markAsPrefix  = "以下を"
-  markAsSuffix  = "回繰り返す"
-  bulletMark    = "・"
-
-proc extractCount(s, startMark, endMark: string): string =
-  ## "ここまでを10回繰り返す" から "10" を取り出す
-  let a = s.find(startMark) + startMark.len
-  let b = s.find(endMark, a)
-  result = s[a ..< b]
-
-proc groupLines(lines: seq[tuple[lineNo: int, text: string]]): seq[LogicalUnit] =
-  var i = 0
-  while i < lines.len:
-    let line = lines[i].text
-    if line == markStart:
-      # ここから 〜 ここまでを##回繰り返す
-      inc i
-      var bodyLines: seq[tuple[lineNo: int, text: string]] = @[]
-      while i < lines.len and not lines[i].text.startsWith(markEndPrefix):
-        bodyLines.add(lines[i])
-        inc i
-      let count = extractCount(lines[i].text, markEndPrefix, markEndSuffix)
-      inc i
-      result.add(LogicalUnit(kind: luForBlock, count: count,
-                              body: groupLines(bodyLines)))
-    elif line.startsWith(markAsPrefix) and line.endsWith(markAsSuffix):
-      # 以下を##回繰り返す 〜 ・箇条書き ...
-      let count = extractCount(line, markAsPrefix, markAsSuffix)
-      inc i
-      var bodyLines: seq[tuple[lineNo: int, text: string]] = @[]
-      while i < lines.len and lines[i].text.startsWith(bulletMark):
-        bodyLines.add((lineNo: lines[i].lineNo,
-                        text: lines[i].text[bulletMark.len ..^ 1].strip()))
-        inc i
-      result.add(LogicalUnit(kind: luForBlock, count: count,
-                              body: groupLines(bodyLines)))
-    else:
-      result.add(LogicalUnit(kind: luLine, lineNo: lines[i].lineNo, text: line))
-      inc i
-
-# ============================================================
-# 3. Stmt(AST)定義
-# ============================================================
-
-type
-  StmtKind = enum
-    skAssign     # target = expr
-    skAddAssign  # target += expr
-    skVarDecl    # var target = expr  ("Xを5とする")
-    skLetDecl    # let target = expr  ("定数Xを5とする")
-    skIncrement  # inc(target)
-    skDecrement  # dec(target)
-    skIf         # if/elif チェーン
-    skForBlock   # for ループ
-
-  IfBranch = object
-    subj, cond: string        # 条件: subj == cond ("" は補完待ち)
-    body: seq[Stmt]
-
-  Stmt = ref object
-    case kind: StmtKind
-    of skAssign, skAddAssign, skVarDecl, skLetDecl:
-      target, expr: string    # target=="" は目的語省略(補完待ち)
-    of skIncrement, skDecrement:
-      tgt: string
-    of skIf:
-      branches: seq[IfBranch]
-    of skForBlock:
-      loopVar, count: string
-      body: seq[Stmt]
-
-# ============================================================
-# 4. 行パース: 1行の文字列 → 値(まだ省略部分は "" のまま)
-#    曖昧警告: 助詞(区切り文字列)が対象範囲内に複数回出現する場合、
-#    「最後の出現位置」を採用した上で、読み取り結果を警告として記録する。
+# 警告機構・分割ヘルパー(グルーピング・行パースの両方から使うため先に定義する)
 # ============================================================
 
 var warnings*: seq[string] = @[]  ## compileJapanim実行ごとにリセットされる警告一覧
@@ -143,6 +51,201 @@ proc rfindSplit(s, sep: string): tuple[before, after: string, found, ambiguous: 
   if idx < 0:
     return (s, "", false, false)
   result = (s[0 ..< idx], s[idx + sep.len .. ^1], true, s.count(sep) > 1)
+
+proc parseComparison(s: string): tuple[op, value: string] =
+  ## if文・while文で共通の比較演算子解析。
+  ## "D未満"→("<","D")  "D以上"→(">=","D")  "D以下"→("<=","D")
+  ## "Dより大きい"→(">","D")  "D超"→(">","D")  それ以外は等価("==",s)とみなす
+  if s.endsWith("未満"):
+    ("<", s[0 ..< s.len - "未満".len])
+  elif s.endsWith("以上"):
+    (">=", s[0 ..< s.len - "以上".len])
+  elif s.endsWith("以下"):
+    ("<=", s[0 ..< s.len - "以下".len])
+  elif s.endsWith("より大きい"):
+    (">", s[0 ..< s.len - "より大きい".len])
+  elif s.endsWith("超"):
+    (">", s[0 ..< s.len - "超".len])
+  else:
+    ("==", s)
+
+# ============================================================
+# 2. グルーピング
+#    ここから〜ここまで / 以下＋箇条書き / もし〜なら(複数処理) を
+#    木構造(LogicalUnit)にする
+# ============================================================
+
+type
+  LUKind = enum
+    luLine       # 単純な1行
+    luForBlock   # 繰り返しブロック(count回) + 本体
+    luWhileBlock # 繰り返しブロック(while条件) + 本体
+    luIfBlock    # 「もし〜なら」(処理省略) + ・箇条書きの複数処理本体
+
+  LogicalUnit = ref object
+    body: seq[LogicalUnit]  # luForBlock/luWhileBlock/luIfBlockで使用(luLineでは空のまま)
+    case kind: LUKind
+    of luLine:
+      lineNo: int
+      text: string
+    of luForBlock:
+      count: string
+    of luWhileBlock:
+      cond: string     # 比較式("L<D"や"フラグ==3"など、正規化済み)
+      negate: bool     # true: while not (cond)  ("〜になるまで繰り返す")
+                        # false: while (cond)     ("〜の間繰り返す")
+    of luIfBlock:
+      ifLineNo: int
+      ifText: string
+
+const
+  markStart         = "ここから"
+  markEndPrefix     = "ここまでを"
+  markAsPrefix      = "以下を"
+  suffixFor         = "回繰り返す"
+  suffixWhileUntil  = "になるまで繰り返す"    # 「〜になるまで繰り返す」→ while not (cond)
+  suffixWhileDuringBare = "間繰り返す"        # 「〜間繰り返す」/「〜の間繰り返す」→ while (cond)
+                                             # 「の」は省略可能として扱う
+  bulletMark        = "・"
+
+proc endsWithWhileDuring(s: string): bool =
+  ## 「の間繰り返す」「間繰り返す」(の省略形)のどちらにもマッチする
+  s.endsWith(suffixWhileDuringBare)
+
+proc extractMiddle(s, startMark, endMark: string): string =
+  ## "ここまでを10回繰り返す" から "10" を取り出す
+  let a = s.find(startMark) + startMark.len
+  let b = s.rfind(endMark)
+  result = s[a ..< b]
+
+proc classifyBlockHeader(s, startMark: string): tuple[kind, mid: string] =
+  ## startMark〜末尾の表現から、for/while_until/while_during の種別とその中身を判定する
+  if s.endsWith(suffixFor):
+    ("for", extractMiddle(s, startMark, suffixFor))
+  elif s.endsWith(suffixWhileUntil):
+    ("while_until", extractMiddle(s, startMark, suffixWhileUntil))
+  elif endsWithWhileDuring(s):
+    # 「の間繰り返す」「間繰り返す」どちらの形でも、末尾の「間繰り返す」を
+    # 切り落としてから、余った「の」があれば追加で取り除く
+    var mid = extractMiddle(s, startMark, suffixWhileDuringBare)
+    if mid.endsWith("の"):
+      mid = mid[0 ..< mid.len - "の".len]
+    ("while_during", mid)
+  else:
+    raise newException(ValueError, "不明な繰り返し表現です: " & s)
+
+proc parseCondExpr(mid: string): tuple[condExpr: string, ambiguous: bool] =
+  ## "LがD未満" → ("L<D", false) のように、while条件文字列を比較式へ変換する
+  let (before, after, found, amb) = rfindSplit(mid, "が")
+  doAssert found, "「が」が見つかりません: " & mid
+  let (op, value) = parseComparison(after)
+  result = (before & op & value, amb)
+
+proc isBareIfLine(line: string): bool =
+  ## "もしEが2なら"のように、「なら」で終わり後続処理が同じ行に無い(処理省略)行かどうか
+  if not line.contains("なら"): return false
+  let (_, after, found, _) = rfindSplit(line, "なら")
+  found and after.len == 0
+
+proc groupLines(lines: seq[tuple[lineNo: int, text: string]]): seq[LogicalUnit] =
+  var i = 0
+  while i < lines.len:
+    let line = lines[i].text
+    let lineNo = lines[i].lineNo
+    if line == markStart:
+      # ここから 〜 ここまでを##回繰り返す / ここまでを{条件}になるまで(の間)繰り返す
+      inc i
+      var bodyLines: seq[tuple[lineNo: int, text: string]] = @[]
+      while i < lines.len and not lines[i].text.startsWith(markEndPrefix):
+        bodyLines.add(lines[i])
+        inc i
+      let headerLine = lines[i].text
+      let headerLineNo = lines[i].lineNo
+      inc i
+      let (kind, mid) = classifyBlockHeader(headerLine, markEndPrefix)
+      if kind == "for":
+        result.add(LogicalUnit(kind: luForBlock, count: mid,
+                                body: groupLines(bodyLines)))
+      else:
+        let (condExpr, amb) = parseCondExpr(mid)
+        if amb: addWarning(headerLineNo, headerLine, @[mid])
+        result.add(LogicalUnit(kind: luWhileBlock, cond: condExpr,
+                                negate: kind == "while_until",
+                                body: groupLines(bodyLines)))
+    elif line.startsWith(markAsPrefix) and
+         (line.endsWith(suffixFor) or line.endsWith(suffixWhileUntil) or
+          endsWithWhileDuring(line)):
+      # 以下を##回繰り返す / 以下を{条件}になるまで(の間)繰り返す 〜 ・箇条書き ...
+      let (kind, mid) = classifyBlockHeader(line, markAsPrefix)
+      inc i
+      var bodyLines: seq[tuple[lineNo: int, text: string]] = @[]
+      while i < lines.len and lines[i].text.startsWith(bulletMark):
+        bodyLines.add((lineNo: lines[i].lineNo,
+                        text: lines[i].text[bulletMark.len ..^ 1].strip()))
+        inc i
+      if kind == "for":
+        result.add(LogicalUnit(kind: luForBlock, count: mid,
+                                body: groupLines(bodyLines)))
+      else:
+        let (condExpr, amb) = parseCondExpr(mid)
+        if amb: addWarning(lineNo, line, @[mid])
+        result.add(LogicalUnit(kind: luWhileBlock, cond: condExpr,
+                                negate: kind == "while_until",
+                                body: groupLines(bodyLines)))
+    elif isBareIfLine(line):
+      # もし〜なら(処理省略) 〜 ・箇条書きの複数処理本体
+      inc i
+      var bodyLines: seq[tuple[lineNo: int, text: string]] = @[]
+      while i < lines.len and lines[i].text.startsWith(bulletMark):
+        bodyLines.add((lineNo: lines[i].lineNo,
+                        text: lines[i].text[bulletMark.len ..^ 1].strip()))
+        inc i
+      result.add(LogicalUnit(kind: luIfBlock, ifLineNo: lineNo, ifText: line,
+                              body: groupLines(bodyLines)))
+    else:
+      result.add(LogicalUnit(kind: luLine, lineNo: lineNo, text: line))
+      inc i
+
+# ============================================================
+# 3. Stmt(AST)定義
+# ============================================================
+
+type
+  StmtKind = enum
+    skAssign      # target = expr
+    skAddAssign   # target += expr
+    skVarDecl     # var target = expr  ("Xを5とする")
+    skLetDecl     # let target = expr  ("定数Xを5とする")
+    skIncrement   # inc(target)
+    skDecrement   # dec(target)
+    skIf          # if/elif チェーン
+    skForBlock    # for ループ
+    skWhileBlock  # while ループ
+
+  IfBranch = object
+    subj, op, value: string   # 条件: subj op value ("" は補完待ち)
+    body: seq[Stmt]
+
+  Stmt = ref object
+    body: seq[Stmt]  # skForBlock/skWhileBlockで使用(それ以外では空のまま)
+    case kind: StmtKind
+    of skAssign, skAddAssign, skVarDecl, skLetDecl:
+      target, expr: string    # target=="" は目的語省略(補完待ち)
+    of skIncrement, skDecrement:
+      tgt: string
+    of skIf:
+      branches: seq[IfBranch]
+    of skForBlock:
+      loopVar, count: string
+    of skWhileBlock:
+      cond: string             # 補完不要なので既に組み立て済みの比較式を持つ
+      negate: bool
+
+# ============================================================
+# 4. 行パース: 1行の文字列 → 値(まだ省略部分は "" のまま)
+#    曖昧警告: 助詞(区切り文字列)が対象範囲内に複数回出現する場合、
+#    「最後の出現位置」を採用した上で、読み取り結果を警告として記録する。
+# ============================================================
 
 proc normalizeExpr(s: string): string =
   ## 演算子の全角→半角変換など
@@ -167,9 +270,11 @@ proc parseAssignPart(actionRaw: string):
     result.tokens = @[s, "に", "する"]
     result.ambiguous = false
 
-proc parseIfLine(line: string):
-    tuple[subj, cond, target, expr: string, tokens: seq[string], ambiguous: bool] =
-  ## "もしBが2なら4にする" / "3ならCを5にする" を解析する
+proc parseIfConditionPrefix(line: string):
+    tuple[subj, condPart, rest: string, tokens: seq[string], ambiguous: bool] =
+  ## "もしBが2なら4にする" / "3ならCを5にする" / "もしEが2なら" 共通の前半解析。
+  ## condPart: 「なら」の直前(比較演算子付きの可能性あり)
+  ## rest    : 「なら」の直後(処理省略行なら空文字列)
   var s = line
   var subj = ""
   var tokens: seq[string] = @[]
@@ -184,16 +289,37 @@ proc parseIfLine(line: string):
     tokens.add(subj)
     tokens.add("が")
     if amb: ambiguous = true
-  let (condPart, actionPart, foundNara, ambNara) = rfindSplit(s, "なら")
+  let (condPart, rest, foundNara, ambNara) = rfindSplit(s, "なら")
   doAssert foundNara, "「なら」が見つかりません: " & line
-  let cond = condPart                 # 主語省略時はここが値だけになる
-  tokens.add(cond)
-  tokens.add("なら")
   if ambNara: ambiguous = true
+  result = (subj, condPart, rest, tokens, ambiguous)
+
+proc parseIfLine(line: string):
+    tuple[subj, op, value, target, expr: string, tokens: seq[string], ambiguous: bool] =
+  ## "もしBが2なら4にする" / "3ならCを5にする" を解析する(同じ行に処理あり)
+  let (subj, condPart, actionPart, tokens0, amb0) = parseIfConditionPrefix(line)
+  let (op, value) = parseComparison(condPart)
+  var tokens = tokens0
+  tokens.add(value)
+  tokens.add(op)
+  tokens.add("なら")
+  var ambiguous = amb0
   let (target, expr, actionTokens, actionAmb) = parseAssignPart(actionPart)
   tokens.add(actionTokens)
   if actionAmb: ambiguous = true
-  result = (subj, cond, target, expr, tokens, ambiguous)
+  result = (subj, op, value, target, expr, tokens, ambiguous)
+
+proc parseIfCondOnly(line: string):
+    tuple[subj, op, value: string, tokens: seq[string], ambiguous: bool] =
+  ## "もしEが2なら" / "5未満なら" を解析する(処理は別行の箇条書きに続く)
+  let (subj, condPart, rest, tokens0, amb0) = parseIfConditionPrefix(line)
+  doAssert rest.len == 0, "「なら」の後に処理が続いています(箇条書きと混在): " & line
+  let (op, value) = parseComparison(condPart)
+  var tokens = tokens0
+  tokens.add(value)
+  tokens.add(op)
+  tokens.add("なら")
+  result = (subj, op, value, tokens, amb0)
 
 proc replaceLoopCounter(expr, loopVar: string): string =
   if loopVar.len == 0: expr
@@ -202,9 +328,21 @@ proc replaceLoopCounter(expr, loopVar: string): string =
 proc isIfLine(s: string): bool = s.contains("なら")
 proc isFullIf(s: string): bool = s.startsWith("もし")
 
+const
+  incrementSuffixes = ["を増やす", "を増加させる"]
+  decrementSuffixes = ["を減少させる", "を減らす"]
+
+proc matchSuffix(s: string, suffixes: openArray[string]): string =
+  ## 複数の表記ゆれ語尾のうち、実際に一致したものを返す(無ければ "")
+  for suf in suffixes:
+    if s.endsWith(suf): return suf
+  ""
+
 proc parseSimpleLine(line: string, lineNo: int, loopVar: string): Stmt =
   ## if文以外の1行を Stmt に変換する。
   ## loopVar が空でなければ式中の「ループ回数」をループ変数名に置換する。
+  let incSuf = matchSuffix(line, incrementSuffixes)
+  let decSuf = matchSuffix(line, decrementSuffixes)
   if line.endsWith("を足す"):
     var s = line[0 ..< line.len - "を足す".len]
     let (before, after, found, amb) = rfindSplit(s, "に")
@@ -232,10 +370,12 @@ proc parseSimpleLine(line: string, lineNo: int, loopVar: string): Stmt =
     let target = before
     if amb: addWarning(lineNo, line, @[target, "に", "足す"])
     Stmt(kind: skAddAssign, target: target, expr: "")
-  elif line.endsWith("を増やす"):
-    Stmt(kind: skIncrement, tgt: line[0 ..< line.len - "を増やす".len])
-  elif line.endsWith("を減少させる"):
-    Stmt(kind: skDecrement, tgt: line[0 ..< line.len - "を減少させる".len])
+  elif incSuf.len > 0:
+    # "Xを増やす" / "Xを増加させる"(表記ゆれ)
+    Stmt(kind: skIncrement, tgt: line[0 ..< line.len - incSuf.len])
+  elif decSuf.len > 0:
+    # "Xを減少させる" / "Xを減らす"(表記ゆれ)
+    Stmt(kind: skDecrement, tgt: line[0 ..< line.len - decSuf.len])
   elif line.endsWith("にする"):
     let (target, expr, tokens, ambiguous) = parseAssignPart(line)
     if ambiguous: addWarning(lineNo, line, tokens)
@@ -265,10 +405,43 @@ proc parseSimpleLine(line: string, lineNo: int, loopVar: string): Stmt =
 
 # ============================================================
 # 5. LogicalUnit列 → Stmt列
-#    「もし〜なら」の連続行を if/elif チェーンにまとめる
+#    「もし〜なら」の連続行/箇条書きブロックを if/elif チェーンにまとめる
 # ============================================================
 
 var loopCounter = 0  ## ここから/以下ブロックごとに増える連番(LOOP_TIMES_N)
+
+proc buildStmts(units: seq[LogicalUnit], loopVar: string): seq[Stmt]
+
+proc unitIsIfLine(u: LogicalUnit): bool =
+  ## if/elifチェーンの一部になり得るLogicalUnitかどうか
+  case u.kind
+  of luLine: isIfLine(u.text)
+  of luIfBlock: true
+  else: false
+
+proc unitIsFullIf(u: LogicalUnit): bool =
+  ## 「もし」で始まる(＝チェーンの先頭になれる)かどうか
+  case u.kind
+  of luLine: isFullIf(u.text)
+  of luIfBlock: isFullIf(u.ifText)
+  else: false
+
+proc unitToIfBranch(u: LogicalUnit, loopVar: string): IfBranch =
+  ## luLine(if文1行) / luIfBlock(if文+箇条書き複数処理) をIfBranchに変換する
+  case u.kind
+  of luLine:
+    let (subj, op, value, target, expr, tokens, ambiguous) = parseIfLine(u.text)
+    if ambiguous: addWarning(u.lineNo, u.text, tokens)
+    IfBranch(subj: subj, op: op, value: value,
+             body: @[Stmt(kind: skAssign, target: target,
+                          expr: replaceLoopCounter(expr, loopVar))])
+  of luIfBlock:
+    let (subj, op, value, tokens, ambiguous) = parseIfCondOnly(u.ifText)
+    if ambiguous: addWarning(u.ifLineNo, u.ifText, tokens)
+    IfBranch(subj: subj, op: op, value: value,
+             body: buildStmts(u.body, loopVar))
+  else:
+    raise newException(ValueError, "if文として扱えないLogicalUnitです")
 
 proc buildStmts(units: seq[LogicalUnit], loopVar: string): seq[Stmt] =
   var i = 0
@@ -282,23 +455,29 @@ proc buildStmts(units: seq[LogicalUnit], loopVar: string): seq[Stmt] =
       result.add(Stmt(kind: skForBlock, loopVar: newLoopVar,
                        count: u.count, body: bodyStmts))
       inc i
-    of luLine:
-      if isIfLine(u.text) and isFullIf(u.text):
+    of luWhileBlock:
+      # while条件は組み立て時点で主語が確定しているため省略補完は不要
+      let bodyStmts = buildStmts(u.body, loopVar)
+      result.add(Stmt(kind: skWhileBlock, cond: u.cond, negate: u.negate,
+                       body: bodyStmts))
+      inc i
+    of luLine, luIfBlock:
+      if unitIsIfLine(u) and unitIsFullIf(u):
         # "もし〜なら" から始まる if/elif チェーンをまとめて消費する
-        var branches: seq[IfBranch] = @[]
-        let (subj, cond, target, expr, tokens, ambiguous) = parseIfLine(u.text)
-        if ambiguous: addWarning(u.lineNo, u.text, tokens)
-        branches.add(IfBranch(subj: subj, cond: cond,
-                       body: @[Stmt(kind: skAssign, target: target,
-                                    expr: replaceLoopCounter(expr, loopVar))]))
+        # (1行完結型・箇条書き複数処理型のどちらでも、また混在していても連結する)
+        var branches: seq[IfBranch] = @[unitToIfBranch(u, loopVar)]
         inc i
-        while i < units.len and units[i].kind == luLine and
-              isIfLine(units[i].text) and not isFullIf(units[i].text):
-          let (subj2, cond2, target2, expr2, tokens2, ambiguous2) = parseIfLine(units[i].text)
-          if ambiguous2: addWarning(units[i].lineNo, units[i].text, tokens2)
-          branches.add(IfBranch(subj: subj2, cond: cond2,
-                         body: @[Stmt(kind: skAssign, target: target2,
-                                      expr: replaceLoopCounter(expr2, loopVar))]))
+        while i < units.len and unitIsIfLine(units[i]) and not unitIsFullIf(units[i]):
+          branches.add(unitToIfBranch(units[i], loopVar))
+          inc i
+        result.add(Stmt(kind: skIf, branches: branches))
+      elif u.kind == luIfBlock:
+        # "もし" を伴わない省略elif的な書き方が単独(先頭)で出てきた場合も
+        # そこから新たなif/elifチェーンとして扱う
+        var branches: seq[IfBranch] = @[unitToIfBranch(u, loopVar)]
+        inc i
+        while i < units.len and unitIsIfLine(units[i]) and not unitIsFullIf(units[i]):
+          branches.add(unitToIfBranch(units[i], loopVar))
           inc i
         result.add(Stmt(kind: skIf, branches: branches))
       else:
@@ -337,7 +516,7 @@ proc resolveOmissions(stmts: seq[Stmt], lastVar, lastExpr: var string) =
         else:
           lastVar = br.subj
         resolveOmissions(br.body, lastVar, lastExpr)
-    of skForBlock:
+    of skForBlock, skWhileBlock:
       resolveOmissions(s.body, lastVar, lastExpr)
 
 # ============================================================
@@ -366,16 +545,23 @@ proc genStmt(s: Stmt, indent: int): seq[string] =
     result = @[]
     for idx, br in s.branches:
       let kw = if idx == 0: "if " else: "elif "
-      result.add(indentStr(indent) & kw & br.subj & "==" & br.cond & ":")
+      result.add(indentStr(indent) & kw & br.subj & br.op & br.value & ":")
       result.add(genStmts(br.body, indent + 1))
   of skForBlock:
     result = @[indentStr(indent) & "for " & s.loopVar & " in 1 .. " &
                s.count & ":"]
     result.add(genStmts(s.body, indent + 1))
+  of skWhileBlock:
+    let condStr = if s.negate: "not (" & s.cond & ")" else: s.cond
+    result = @[indentStr(indent) & "while " & condStr & ":"]
+    result.add(genStmts(s.body, indent + 1))
 
 proc genStmts(stmts: seq[Stmt], indent: int): seq[string] =
   for s in stmts:
     result.add(genStmt(s, indent))
+  if result.len == 0:
+    # 箇条書き本体が空(記述ミス等)でも構文的に有効なNimコードにしておく
+    result = @[indentStr(indent) & "discard"]
 
 # ============================================================
 # 8. 変数収集パス
@@ -423,11 +609,14 @@ proc collectVars(stmts: seq[Stmt], declared, loopVars: var HashSet[string],
     of skIf:
       for br in s.branches:
         if br.subj.len > 0: used.add(br.subj)
-        used.add(extractIdents(br.cond))
+        used.add(extractIdents(br.value))
         collectVars(br.body, declared, loopVars, used)
     of skForBlock:
       loopVars.incl(s.loopVar)
       used.add(extractIdents(s.count))
+      collectVars(s.body, declared, loopVars, used)
+    of skWhileBlock:
+      used.add(extractIdents(s.cond))
       collectVars(s.body, declared, loopVars, used)
 
 # ============================================================
@@ -490,6 +679,24 @@ AにBを足す
 つうじににに足す
 Cを足す
 なまをををにをりににする
+Hを10にする
+以下をHが3未満になるまで繰り返す
+・Hを減らす
+Jを5にする
+以下をJが0より大きいの間繰り返す
+・Jを減らす
+Lを5にする
+以下をLが0より大きい間繰り返す
+・Lを減らす
+Kを0にする
+ここから
+Kを増やす
+ここまでをKが3以上になるまで繰り返す
+もしFが10以上なら
+・Fを減らす
+・Gを増加させる
+5未満なら
+・Gを減らす
 """
   let code = compileJapanim(sample)
   if warnings.len > 0:
