@@ -272,26 +272,35 @@ proc parseAssignPart(actionRaw: string):
 
 proc parseIfConditionPrefix(line: string):
     tuple[subj, condPart, rest: string, tokens: seq[string], ambiguous: bool] =
-  ## "もしBが2なら4にする" / "3ならCを5にする" / "もしEが2なら" 共通の前半解析。
+  ## "もしBが2なら4にする" / "3ならCを5にする" / "もしEが2なら" /
+  ## "Cが3なら5にする"(「もし」省略だが主語は明示)共通の前半解析。
   ## condPart: 「なら」の直前(比較演算子付きの可能性あり)
   ## rest    : 「なら」の直後(処理省略行なら空文字列)
   var s = line
   var subj = ""
   var tokens: seq[string] = @[]
   var ambiguous = false
-  if s.startsWith("もし"):
+  let hasMoshi = s.startsWith("もし")
+  if hasMoshi:
     tokens.add("もし")
     s = s["もし".len .. ^1]
-    let (before, after, found, amb) = rfindSplit(s, "が")
-    doAssert found, "「が」が見つかりません: " & line
-    subj = before
-    s = after
-    tokens.add(subj)
-    tokens.add("が")
-    if amb: ambiguous = true
-  let (condPart, rest, foundNara, ambNara) = rfindSplit(s, "なら")
+  # 先に「なら」で条件部分と処理部分を分ける
+  let (condPreNara, rest, foundNara, ambNara) = rfindSplit(s, "なら")
   doAssert foundNara, "「なら」が見つかりません: " & line
   if ambNara: ambiguous = true
+  # 条件部分の中に「が」があれば主語として読み取る。
+  # 「もし」を伴わない省略elif行でも、「が」が明示されていれば主語として扱う
+  # (例: "Cが3なら5にする" → 主語C・値3。"3なら5にする" は主語省略のまま)
+  var condPart = condPreNara
+  let (before, after, foundGa, ambGa) = rfindSplit(condPreNara, "が")
+  if foundGa:
+    subj = before
+    condPart = after
+    tokens.add(subj)
+    tokens.add("が")
+    if ambGa: ambiguous = true
+  elif hasMoshi:
+    doAssert false, "「が」が見つかりません: " & line
   result = (subj, condPart, rest, tokens, ambiguous)
 
 proc parseIfLine(line: string):
