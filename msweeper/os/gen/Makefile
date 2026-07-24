@@ -22,11 +22,11 @@ all: $(BOOT)
 
 # Run
 run:
-	$(QEMU) $(QEMU_FLAGS) -drive file=$(IMG),format=raw,if=floppy -boot order=a -rtc base=localtime
+	$(QEMU) $(QEMU_FLAGS) -drive file=$(filter %.img,$(MAKECMDGOALS)),format=raw,if=floppy -boot order=a -rtc base=localtime
 
 # CleanUp
 clean:
-	rm -f $(IMG) $(BOOT)
+	rm -f $(BOOT)
 
 # FakeTarget
 .PHONY: all run clean
