@@ -1,6 +1,6 @@
 Original Loader & raw binary
 
-- How to compile:
+- How to generate:
 make gen
 
 - How to run:

@@ -1,6 +1,6 @@
 OS
 
-- How to compile:
+- How to generate:
 make
 
 - How to run:
