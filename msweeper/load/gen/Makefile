@@ -4,7 +4,8 @@ CC      = cc
 CFLAGS  = -O2 -fno-stack-protector
 LOAD    = loader.c
 LOADER  = $(basename $(LOAD))
-BIN     = $(filter %.bin,$(MAKECMDGOALS))
+SRCS    = $(filter %.asm,$(MAKECMDGOALS))
+OBJS    = $(SRCS:.asm=.bin)
 
 .PHONY: run gen
 
@@ -14,7 +15,7 @@ BIN     = $(filter %.bin,$(MAKECMDGOALS))
 $(LOADER): $(LOAD)
 	$(CC) $(CFLAGS) -o $@ $<
 
-gen: $(LOADER) $(BIN)
+gen: $(LOADER) $(OBJS)
 
 run:
-	./$(basename $(LOAD)) $(BIN) || true
+	./$(basename $(LOAD)) $(OBJS) || true
