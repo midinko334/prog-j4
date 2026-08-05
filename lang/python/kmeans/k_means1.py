@@ -3,7 +3,7 @@ import numpy as np
 def distance(a, b):
     dist=0.0
     for i in range(len(a)):
-	dist+=(a[i]-b[i])**2
+        dist+=(a[i]-b[i])**2
     dist=np.sqrt(dist)
     return dist
 
