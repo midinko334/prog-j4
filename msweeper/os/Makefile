@@ -22,7 +22,7 @@ all: $(BOOT)
 
 # Run
 run:
-	$(QEMU) $(QEMU_FLAGS) -drive file=$(filter %.bin,$(MAKECMDGOALS)),format=raw,if=floppy -boot order=a -rtc base=localtime
+	$(QEMU) $(QEMU_FLAGS) -drive file=$(filter %.img,$(MAKECMDGOALS)),format=raw,if=floppy -boot order=a -rtc base=localtime
 
 # CleanUp
 clean:
