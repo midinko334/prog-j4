@@ -1285,20 +1285,9 @@ static void PrintState(void)
 
 /* ==========================================================================
  * main:
- *   ./mips_final                 内蔵のサンプル(SampleCode.txt相当: s=sum(0..10))を実行
- *   ./mips_final file.txt        file.txt を MIPS アセンブリとしてアセンブルして実行
- *   ./mips_final -x file.hex     file.hex を「1行1語の16進機械語」として読み込み実行
+ *   ./mips file.txt        file.txt を MIPS アセンブリとしてアセンブルして実行
+ *   ./mips -x file.hex     file.hex を「1行1語の16進機械語」として読み込み実行
  * ========================================================================*/
-static const char *built_in_source =
-    "    START   0\n"
-    "    add     $s0,$zero,$zero\n"
-    "    addi    $s1,$zero,1\n"
-    "    addi    $s2,$zero,11\n"
-    "LOOP: beq   $s1,$s2,END\n"
-    "    add     $s0,$s0,$s1\n"
-    "    addi    $s1,$s1,1\n"
-    "    j       LOOP\n"
-    "END: BREAK\n";
 
 int main(int argc, char *argv[])
 {
@@ -1332,22 +1321,12 @@ int main(int argc, char *argv[])
         entry_pc = AssembleFile(argv[1], MEM, &ok);
         if (!ok) { free(MEM); return EXIT_FAILURE; }
     } else {
-        /* 引数無しの場合は内蔵サンプル(SampleCode.txt相当)を一時ファイルに
-           書き出してからアセンブルする */
-        const char *tmpname = "/tmp/mips_final_builtin.tmp";
-        FILE *fp = fopen(tmpname, "w");
-        if (fp == NULL) {
-            fprintf(stderr, "error: cannot create temporary file\n");
-            free(MEM);
-            return EXIT_FAILURE;
-        }
-        fputs(built_in_source, fp);
-        fclose(fp);
-        int ok = 0;
-        entry_pc = AssembleFile(tmpname, MEM, &ok);
-        remove(tmpname);
-        if (!ok) { free(MEM); return EXIT_FAILURE; }
-        printf("(no file given: running built-in sample, s = sum(0..10))\n");
+        /* 引数無し(入力ファイル未指定)の場合は、命令が一つも無いので
+           アセンブルもシミュレーションも行わずに終了する */
+        fprintf(stderr, "usage: %s <file.txt> | -x <file.hex>\n",
+                (argc >= 1) ? argv[0] : "mips");
+        free(MEM);
+        return EXIT_FAILURE;
     }
 
     memset(GPR, 0, sizeof(GPR));
