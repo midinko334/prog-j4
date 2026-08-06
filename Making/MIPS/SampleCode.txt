@@ -1,0 +1,9 @@
+    START   0
+    add     $s0,$zero,$zero
+    addi    $s1,$zero,1
+    addi    $s2,$zero,11
+LOOP: beq   $s1,$s2,END
+    add     $s0,$s0,$s1
+    addi    $s1,$s1,1
+    j       LOOP
+END: BREAK
