@@ -1,24 +1,3 @@
-/* ============================================================================
- *
- * MIPS命令セット・シミュレータ（最終統合版）
- *
- * MemoryModule.c/h（バイトアドレッシングのメモリモジュール）と組み合わせて
- * 使用する。IF/ID/EX/MEM/WBの5つのステージ関数を1命令ごとに順番に呼び出す
- * マルチサイクル方式で命令を実行する（分岐・ジャンプは MEM ステージで PC に
- * 反映されるため、次の IF は必ず正しいアドレスを取得できる）。
- *
- * AllInstructions.txt に列挙されている全命令（整数演算・分岐・ジャンプ・
- * メモリアクセス・単精度/倍精度浮動小数点演算・LL/SC・MFC0・BREAK）を
- * サポートする。
- *
- * コンパイル:
- *   cc -std=c11 -Wall -o mips mips.c MemoryModule.c
- *
- * 実行:
- *   ./mips              ... 内蔵のサンプルプログラム(SampleCode.txt相当)を実行
- *   ./mips <machcode>   ... 16進数の機械語を1行1語で記述したファイルを読み込んで実行
- * ==========================================================================*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,25 +6,19 @@
 
 #include "MemoryModule.h"
 
-/* ------------------------------------------------------------------------
- * レジスタ数・コプロセッサ0レジスタ番号
- * ----------------------------------------------------------------------*/
 #define NUM_GPR 32
 #define NUM_FPR 32
 #define NUM_CR  32
 
-#define CR_CAUSE 13   /* MIPS CP0 Cause レジスタ番号 */
-#define CR_EPC   14   /* MIPS CP0 EPC レジスタ番号   */
+#define CR_CAUSE 13
+#define CR_EPC   14
 
-#define CAUSE_OVERFLOW (12 << 2)  /* ExcCode=12(Ov) を Cause の ExcCode フィールドへ */
+#define CAUSE_OVERFLOW (12 << 2)
 
-/* ------------------------------------------------------------------------
- * 命令の内部表現
- * ----------------------------------------------------------------------*/
 typedef enum {
     OP_UNKNOWN = 0,
     OP_BREAK,
-    /* 整数R形式 */
+    /* R形式 */
     OP_ADD, OP_ADDU, OP_SUB, OP_SUBU,
     OP_AND, OP_OR, OP_NOR,
     OP_SLL, OP_SRL, OP_SRA,
@@ -55,14 +28,14 @@ typedef enum {
     OP_MFHI, OP_MFLO, OP_MFC0,
     /* J形式 */
     OP_J, OP_JAL,
-    /* 整数I形式 */
+    /* I形式 */
     OP_ADDI, OP_ADDIU, OP_ANDI, OP_ORI,
     OP_SLTI, OP_SLTIU, OP_LUI,
     OP_LW, OP_LHU, OP_LBU,
     OP_SW, OP_SH, OP_SB,
     OP_BEQ, OP_BNE,
     OP_LL, OP_SC,
-    /* 浮動小数点(単精度/倍精度) */
+    /* 浮動小数*/
     OP_ADD_S, OP_ADD_D, OP_SUB_S, OP_SUB_D,
     OP_MUL_S, OP_MUL_D, OP_DIV_S, OP_DIV_D,
     OP_C_EQ_S, OP_C_LT_S, OP_C_LE_S,
@@ -79,12 +52,9 @@ typedef enum {
     FMT_FI
 } InstrFormat;
 
-/* ------------------------------------------------------------------------
- * パイプラインレジスタ（ステージ間でデータを受け渡すための構造体）
- * ----------------------------------------------------------------------*/
 typedef struct {
-    uint32_t instr;   /* フェッチした生の命令 */
-    uint32_t pc4;      /* フェッチ時の PC + 4 */
+    uint32_t instr;
+    uint32_t pc4;
 } IFID_Reg;
 
 typedef struct {
@@ -96,7 +66,7 @@ typedef struct {
     uint32_t pc4;
     uint32_t imm;
     uint32_t rsval, rsval2, rtval, rtval2;
-    int      wb_reg;   /* -1 ならば書き戻し無し */
+    int      wb_reg;
 } IDEX_Reg;
 
 typedef struct {
@@ -105,7 +75,7 @@ typedef struct {
     uint32_t pc4;
     uint32_t alu_result, alu_result2;
     uint32_t store_val, store_val2;
-    int      zero;            /* 分岐/比較が成立したか */
+    int      zero;
     uint32_t branch_target;
 } EXMEM_Reg;
 
@@ -116,9 +86,6 @@ typedef struct {
     uint32_t mem_data, mem_data2;
 } MEMWB_Reg;
 
-/* ------------------------------------------------------------------------
- * 大域状態
- * ----------------------------------------------------------------------*/
 uint32_t GPR[NUM_GPR];
 uint32_t PC;
 uint32_t HI, LO;
@@ -141,9 +108,6 @@ IDEX_Reg  IDEX;
 EXMEM_Reg EXMEM;
 MEMWB_Reg MEMWB;
 
-/* ------------------------------------------------------------------------
- * 命令フィールド抽出マクロ
- * ----------------------------------------------------------------------*/
 #define F_OPCODE(i) (((i) >> 26) & 0x3F)
 #define F_RS(i)     (((i) >> 21) & 0x1F)
 #define F_RT(i)     (((i) >> 16) & 0x1F)
@@ -153,13 +117,10 @@ MEMWB_Reg MEMWB;
 #define F_IMM16(i)  ((i) & 0xFFFF)
 #define F_ADDR26(i) ((i) & 0x3FFFFFF)
 
-#define FMT_S   0x10   /* COP1 rs フィールド：単精度 */
-#define FMT_D   0x11   /* COP1 rs フィールド：倍精度 */
-#define FMT_BC  0x08   /* COP1 rs フィールド：条件分岐(bc1t/bc1f) */
+#define FMT_S   0x10
+#define FMT_D   0x11
+#define FMT_BC  0x08
 
-/* ------------------------------------------------------------------------
- * 補助関数
- * ----------------------------------------------------------------------*/
 static uint32_t SignExtImm(uint32_t imm16)
 {
     return (uint32_t)(int32_t)(int16_t)(imm16 & 0xFFFF);
@@ -204,8 +165,6 @@ static void double_to_pair(double d, uint32_t *hi, uint32_t *lo)
     *lo = (uint32_t)(bits & 0xFFFFFFFFu);
 }
 
-/* MEM_SIZE の範囲外アクセスを検出し、セグメンテーション違反ではなく
-   分かりやすいエラーで安全に停止させる */
 static int AddrOutOfRange(MADDR addr, size_t accesssize)
 {
     return (addr + accesssize > MEM_SIZE) || (addr + accesssize < addr);
@@ -228,9 +187,6 @@ static void SetOverflowException(void)
             CR[CR_EPC]);
 }
 
-/* ==========================================================================
- * ステージ関数
- * ========================================================================*/
 void IF_stage(void)
 {
     if (SimHalted) return;
@@ -405,9 +361,6 @@ void ID_stage(void)
             IDEX.wb_reg = -1; break;
     }
 
-    /* j / jal はステージ.pdf・データフロー.pdfの設計通り、
-       ジャンプ先アドレスの計算とPCへの書込みをIDステージで行う。
-       （EX/MEMステージ側では、この2命令については分岐処理を行わない） */
     if (op == OP_J || op == OP_JAL) {
         PC = JumpAddr(addr26, IFID.pc4);
     }
@@ -484,10 +437,8 @@ void EX_stage(void)
             EXMEM.branch_target = IDEX.pc4 + IDEX.imm;
             break;
         case OP_J:
-            /* PCの更新はIDステージで完了済み。EXでは何もしない。 */
             break;
         case OP_JAL:
-            /* PCの更新はIDステージで完了済み。EXではR[31]用の戻り値のみ計算する。 */
             EXMEM.alu_result = IDEX.pc4;
             break;
         case OP_JR:
@@ -574,8 +525,6 @@ void MEM_stage(void)
     Opcode op = EXMEM.op;
     MADDR addr = (MADDR)EXMEM.alu_result;
 
-    /* このステージでメモリアクセスを伴う命令については、範囲外アドレスを
-       ここで検出してから実際のアクセスを行う */
     size_t access_size = 0;
     switch (op) {
         case OP_LW: case OP_SW: case OP_LL: case OP_SC:
@@ -665,7 +614,6 @@ void MEM_stage(void)
             break;
 
         case OP_J: case OP_JAL:
-            /* PCの更新はIDステージで完了済みなので、MEMでは何もしない。 */
             break;
 
         case OP_BREAK:
@@ -737,22 +685,6 @@ void WB_stage(void)
     CycleCount++;
 }
 
-/* ==========================================================================
- * アセンブラ（Asm.ipynb と同じ文法を C で実装したもの）
- *
- * SampleCode.txt / AllInstructions.txt のような MIPS アセンブリ・ソースを
- * 直接読み込み、機械語に変換してメモリへ書き込む。以前のバージョンは
- * 16進数の機械語列しか読めなかったため、ニーモニックの文字列
- * （"add" は 0xadd としてそのまま16進数と解釈できてしまう等）を
- * 誤ってロードしてしまうバグがあった。これを解消するため、
- * ラベル計算(パス1)とコード生成(パス2)を行う本物のアセンブラを実装する。
- *
- * 文法（readme/Asm.ipynb 準拠）:
- *   ラベル無し行: 空白 + オペコード + 空白 + オペランド
- *   ラベル付き行: ラベル + ":" + 空白 + オペコード + 空白 + オペランド
- *   疑似命令: START addr / DATA d1,d2,... / BREAK
- * ========================================================================*/
-
 #define ASM_MAX_LINES   8192
 #define ASM_MAX_LABELS  1024
 #define ASM_LINE_LEN    512
@@ -780,8 +712,8 @@ typedef struct {
     const char *mnemonic;
     uint32_t    opcode;
     uint32_t    funct;
-    uint32_t    fmt;   /* rs field for floating instructions (FMT_S/FMT_D/FMT_BC) */
-    uint32_t    ft;    /* fixed rt/ft field, used only by bc1t/bc1f                */
+    uint32_t    fmt;
+    uint32_t    ft;
     OperandFmt  operand;
 } AsmInstrDef;
 
@@ -905,7 +837,6 @@ static int AsmFindLabel(const char *name, uint32_t *addr_out)
     return 0;
 }
 
-/* ラベル名または数値（10進・0x接頭辞16進・負数）を評価する */
 static long AsmEvalConst(const char *tok)
 {
     uint32_t addr;
@@ -920,7 +851,6 @@ static long AsmEvalConst(const char *tok)
     return v;
 }
 
-/* Python の "//"（負方向への切り捨て = floor除算）と同じ意味の除算 */
 static long AsmFloorDiv(long a, long b)
 {
     long q = a / b;
@@ -986,7 +916,6 @@ static uint32_t AsmTypeFI(uint32_t op, uint32_t fmt, uint32_t ft, uint32_t imm)
     return (op << 26) | ((fmt & 0x1F) << 21) | ((ft & 0x1F) << 16) | (imm & 0xFFFF);
 }
 
-/* 空白（スペース/タブ）区切りでトークン化する（Python の str.split() 相当） */
 static int AsmTokenize(char *line, char *tokens[], int maxtok)
 {
     int n = 0;
@@ -998,7 +927,6 @@ static int AsmTokenize(char *line, char *tokens[], int maxtok)
     return n;
 }
 
-/* "imm(rs)" 形式のオペランドを imm 部分とレジスタ部分に分割する */
 static void AsmSplitMem(char *s, char **imm_out, char **reg_out)
 {
     char *lp = strchr(s, '(');
@@ -1021,7 +949,6 @@ static void AsmSplitMem(char *s, char **imm_out, char **reg_out)
     *reg_out = lp + 1;
 }
 
-/* カンマ区切りのオペランドを最大 maxparts 個のトークンに分割する */
 static int AsmSplitCommas(char *s, char *parts[], int maxparts)
 {
     int n = 0;
@@ -1041,7 +968,6 @@ static const AsmInstrDef *AsmFindInstr(const char *mnemonic)
     return NULL;
 }
 
-/* ---- パス1: ソースを読み込み、ラベルのアドレスを計算する -------------- */
 static int AsmPass1(const char *filename)
 {
     FILE *fp = fopen(filename, "r");
@@ -1060,13 +986,11 @@ static int AsmPass1(const char *filename)
         char work[ASM_LINE_LEN];
         snprintf(work, sizeof(work), "%s", rawline);
 
-        /* 行頭文字（トークン化前）でラベル有無を判定する。
-           ラベル無し行は空白から、ラベル付き行は英数字から始まる。 */
         int has_label = (work[0] != '\0' && isalnum((unsigned char)work[0]));
 
         char *tokens[64];
         int ntok = AsmTokenize(work, tokens, 64);
-        if (ntok == 0) continue;   /* 空行 */
+        if (ntok == 0) continue;
 
         if (AsmLineCount >= ASM_MAX_LINES) {
             fprintf(stderr, "asm error: too many lines (limit %d)\n", ASM_MAX_LINES);
@@ -1114,7 +1038,6 @@ static int AsmPass1(const char *filename)
     return 1;
 }
 
-/* ---- パス2: 機械語を生成しメモリへ書き込む ----------------------------- */
 static uint32_t AsmPass2(MEMORY *mem)
 {
     uint32_t entry_pc = 0;
@@ -1256,7 +1179,6 @@ static uint32_t AsmPass2(MEMORY *mem)
     return entry_pc;
 }
 
-/* ソースファイルをアセンブルしてメモリに配置し、開始アドレス(START)を返す */
 static uint32_t AssembleFile(const char *filename, MEMORY *mem, int *ok)
 {
     *ok = AsmPass1(filename);
@@ -1270,9 +1192,6 @@ static uint32_t AssembleFile(const char *filename, MEMORY *mem, int *ok)
     return entry;
 }
 
-/* ==========================================================================
- * MIPS レジスタ名(表示用)
- * ========================================================================*/
 static const char *RegName[NUM_GPR] = {
     "zero","at","v0","v1","a0","a1","a2","a3",
     "t0","t1","t2","t3","t4","t5","t6","t7",
@@ -1292,12 +1211,6 @@ static void PrintState(void)
     printf("\nHI = %u, LO = %u\n", HI, LO);
 }
 
-/* ==========================================================================
- * main:
- *   ./mips file.txt        file.txt を MIPS アセンブリとしてアセンブルして実行
- *   ./mips -x file.hex     file.hex を「1行1語の16進機械語」として読み込み実行
- * ========================================================================*/
-
 int main(int argc, char *argv[])
 {
     MEM_SIZE = 4096;
@@ -1310,7 +1223,6 @@ int main(int argc, char *argv[])
     uint32_t entry_pc = 0;
 
     if (argc >= 3 && strcmp(argv[1], "-x") == 0) {
-        /* 生の16進機械語ファイルを読み込むモード(デバッグ用) */
         FILE *fp = fopen(argv[2], "r");
         if (fp == NULL) {
             perror(argv[2]);
@@ -1325,13 +1237,10 @@ int main(int argc, char *argv[])
         free(buf);
         printf("Loaded %zu word(s) from \"%s\" (raw hex mode).\n", n, argv[2]);
     } else if (argc >= 2) {
-        /* MIPSアセンブリのソースファイルを直接アセンブルする */
         int ok = 0;
         entry_pc = AssembleFile(argv[1], MEM, &ok);
         if (!ok) { free(MEM); return EXIT_FAILURE; }
     } else {
-        /* 引数無し(入力ファイル未指定)の場合は、命令が一つも無いので
-           アセンブルもシミュレーションも行わずに終了する */
         fprintf(stderr, "usage: %s <file.txt> | -x <file.hex>\n",
                 (argc >= 1) ? argv[0] : "mips");
         free(MEM);
@@ -1350,9 +1259,6 @@ int main(int argc, char *argv[])
     LinkValid = 0;
     LinkAddr = 0;
 
-    /* マルチサイクル実行: 1回のループで1命令を IF->ID->EX->MEM->WB まで
-       完全に処理する。分岐/ジャンプの結果は MEM ステージで PC に反映され、
-       次のループの IF ステージが正しいアドレスをフェッチする。 */
     while (!SimHalted) {
         IF_stage();
         ID_stage();
