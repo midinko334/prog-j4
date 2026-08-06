@@ -404,6 +404,13 @@ void ID_stage(void)
         default:
             IDEX.wb_reg = -1; break;
     }
+
+    /* j / jal はステージ.pdf・データフロー.pdfの設計通り、
+       ジャンプ先アドレスの計算とPCへの書込みをIDステージで行う。
+       （EX/MEMステージ側では、この2命令については分岐処理を行わない） */
+    if (op == OP_J || op == OP_JAL) {
+        PC = JumpAddr(addr26, IFID.pc4);
+    }
 }
 
 void EX_stage(void)
@@ -477,12 +484,10 @@ void EX_stage(void)
             EXMEM.branch_target = IDEX.pc4 + IDEX.imm;
             break;
         case OP_J:
-            EXMEM.zero = 1;
-            EXMEM.branch_target = JumpAddr(IDEX.addr26, IDEX.pc4);
+            /* PCの更新はIDステージで完了済み。EXでは何もしない。 */
             break;
         case OP_JAL:
-            EXMEM.zero = 1;
-            EXMEM.branch_target = JumpAddr(IDEX.addr26, IDEX.pc4);
+            /* PCの更新はIDステージで完了済み。EXではR[31]用の戻り値のみ計算する。 */
             EXMEM.alu_result = IDEX.pc4;
             break;
         case OP_JR:
@@ -652,11 +657,15 @@ void MEM_stage(void)
             break;
 
         case OP_BEQ: case OP_BNE:
-        case OP_J:   case OP_JAL: case OP_JR:
+        case OP_JR:
         case OP_BC1T: case OP_BC1F:
             if (EXMEM.zero) {
                 PC = EXMEM.branch_target;
             }
+            break;
+
+        case OP_J: case OP_JAL:
+            /* PCの更新はIDステージで完了済みなので、MEMでは何もしない。 */
             break;
 
         case OP_BREAK:
