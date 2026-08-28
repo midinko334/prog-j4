@@ -35,12 +35,12 @@ msg_finalscore_len equ $-msg_finalscore
 msg_levelup:     db 10,"*** Field cleared! ***",10
 msg_levelup_len  equ $-msg_levelup
 
-pfx_prompt:  db "(level:"
-pfx_prompt_len equ $-pfx_prompt
-mid_prompt:  db " score:"
-mid_prompt_len equ $-mid_prompt
-sfx_prompt:  db "):? "
-sfx_prompt_len equ $-sfx_prompt
+prompt1:  db "(level:"
+prompt1_len equ $-prompt1
+prompt2:  db " score:"
+prompt2_len equ $-prompt2
+prompt3:  db "):? "
+prompt3_len equ $-prompt3
 
 ; Keypad offsets: dx, dy.
 dirtable:
@@ -103,31 +103,31 @@ _start:
 main_loop:
     call    draw_field
 
-.read_command:
+.ml_read_command:
     call    read_command
 
     cmp     al, 0
-    je      .do_teleport
+    je      .ml_do_teleport
     cmp     al, 5
-    je      .do_wait
-    jmp     .do_move
+    je      .ml_do_wait
+    jmp     .ml_do_move
 
-.do_teleport:
+.ml_do_teleport:
     call    do_teleport
-    jmp     .robots_move
+    jmp     .ml_robots_move
 
-.do_wait:
-    jmp     .robots_move
+.ml_do_wait:
+    jmp     .ml_robots_move
 
-.do_move:
+.ml_do_move:
     call    do_directional_move
     cmp     al, 1
-    jne     .read_command
+    jne     .ml_read_command
 
-.robots_move:
+.ml_robots_move:
     call    robots_phase
     cmp     byte [caught_flag], 1
-    je      .game_over
+    je      .ml_game_over
 
     cmp     dword [robot_count], 0
     jne     main_loop
@@ -141,7 +141,7 @@ main_loop:
     call    new_game_field
     jmp     main_loop
 
-.game_over:
+.ml_game_over:
     call    draw_field
     mov     rsi, msg_gameover
     mov     rdx, msg_gameover_len
@@ -164,7 +164,7 @@ new_game_field:
 
     mov     eax, [level]
     cmp     eax, 1
-    jne     .keep_player
+    jne     .ngf_keep_player
 
     call    clear_grid
     call    rand_empty_cell
@@ -176,9 +176,9 @@ new_game_field:
     movzx   rcx, al
     add     rbx, rcx
     mov     byte [grid+rbx], CELL_PLAYER
-    jmp     .place_robots
+    jmp     .ngf_place_robots
 
-.keep_player:
+.ngf_keep_player:
     call    clear_grid
     movzx   rbx, byte [player_y]
     imul    rbx, rbx, WIDTH
@@ -186,20 +186,20 @@ new_game_field:
     add     rbx, rcx
     mov     byte [grid+rbx], CELL_PLAYER
 
-.place_robots:
+.ngf_place_robots:
     mov     eax, [level]
     imul    eax, eax, 5
     cmp     eax, MAXROBOTS
-    jle     .ok_count
+    jle     .ngf_ok_count
     mov     eax, MAXROBOTS
-.ok_count:
+.ngf_ok_count:
     mov     [num_robots], eax
     mov     [robot_count], eax
 
     xor     r12, r12
-.place_loop:
+.ngf_place_loop:
     cmp     r12d, [num_robots]
-    jge     .place_done
+    jge     .ngf_place_done
 
     call    rand_empty_cell
     mov     dl, ah
@@ -214,8 +214,8 @@ new_game_field:
     mov     byte [grid+rbx], CELL_ROBOT
 
     inc     r12
-    jmp     .place_loop
-.place_done:
+    jmp     .ngf_place_loop
+.ngf_place_done:
     mov     byte [caught_flag], 0
     pop     rbx
     ret
@@ -269,7 +269,7 @@ rand_empty_cell:
     push    r8
 
     mov     r8, 500
-.try:
+.rec_try:
     mov     ecx, WIDTH
     call    rand_range
     mov     bl, al
@@ -282,31 +282,31 @@ rand_empty_cell:
     movzx   rcx, bl
     add     rdx, rcx
     cmp     byte [grid+rdx], CELL_EMPTY
-    je      .found
+    je      .rec_found
 
     dec     r8
-    jnz     .try
+    jnz     .rec_try
 
     xor     rdx, rdx
-.scan:
+.rec_scan:
     cmp     rdx, WIDTH*HEIGHT
-    jge     .give_up
+    jge     .rec_give_up
     cmp     byte [grid+rdx], CELL_EMPTY
-    je      .scan_found
+    je      .rec_scan_found
     inc     rdx
-    jmp     .scan
-.scan_found:
+    jmp     .rec_scan
+.rec_scan_found:
     mov     rax, rdx
     xor     rdx, rdx
     mov     ecx, WIDTH
     div     ecx
     mov     bh, al
     mov     bl, dl
-    jmp     .found
-.give_up:
+    jmp     .rec_found
+.rec_give_up:
     xor     bl, bl
     xor     bh, bh
-.found:
+.rec_found:
     mov     al, bl
     mov     ah, bh
     pop     r8
@@ -358,13 +358,13 @@ do_directional_move:
     add     rdx, r9
 
     cmp     rcx, 0
-    jl      .oob
+    jl      .ddm_oob
     cmp     rcx, WIDTH
-    jge     .oob
+    jge     .ddm_oob
     cmp     rdx, 0
-    jl      .oob
+    jl      .ddm_oob
     cmp     rdx, HEIGHT
-    jge     .oob
+    jge     .ddm_oob
 
     mov     rbx, rdx
     imul    rbx, rbx, WIDTH
@@ -372,12 +372,12 @@ do_directional_move:
     movzx   eax, byte [grid+rbx]
 
     cmp     al, CELL_SCRAP
-    je      .blocked
+    je      .ddm_blocked
 
     ; This also detects a robot already on the destination cell.
     call    destination_is_caught
     test    al, al
-    jnz     .blocked_by_robot
+    jnz     .ddm_blocked_by_robot
 
     movzx   r10, byte [player_y]
     imul    r10, r10, WIDTH
@@ -390,23 +390,23 @@ do_directional_move:
     mov     [player_y], dl
 
     mov     al, 1
-    jmp     .done
+    jmp     .ddm_done
 
-.oob:
-.blocked:
+.ddm_oob:
+.ddm_blocked:
     mov     rsi, msg_cannot
     mov     rdx, msg_cannot_len
     call    do_write
     mov     al, 0
-    jmp     .done
+    jmp     .ddm_done
 
-.blocked_by_robot:
+.ddm_blocked_by_robot:
     mov     rsi, msg_catch
     mov     rdx, msg_catch_len
     call    do_write
     mov     al, 0
 
-.done:
+.ddm_done:
     pop     r9
     pop     r8
     pop     rdx
@@ -418,42 +418,42 @@ do_directional_move:
 destination_is_caught:
     lea     r8, [rdx-1]
     lea     r9, [rdx+1]
-.row_loop:
+.dic_row_loop:
     cmp     r8, r9
-    jg      .safe
+    jg      .dic_safe
     cmp     r8, 0
-    jl      .next_row
+    jl      .dic_next_row
     cmp     r8, HEIGHT
-    jge     .next_row
+    jge     .dic_next_row
 
     lea     r10, [rcx-1]
     lea     r11, [rcx+1]
-.col_loop:
+.dic_col_loop:
     cmp     r10, r11
-    jg      .next_row
+    jg      .dic_next_row
     cmp     r10, 0
-    jl      .next_col
+    jl      .dic_next_col
     cmp     r10, WIDTH
-    jge     .next_col
+    jge     .dic_next_col
 
     mov     rax, r8
     imul    rax, rax, WIDTH
     add     rax, r10
     cmp     byte [grid+rax], CELL_ROBOT
-    je      .caught
+    je      .dic_caught
 
-.next_col:
+.dic_next_col:
     inc     r10
-    jmp     .col_loop
+    jmp     .dic_col_loop
 
-.next_row:
+.dic_next_row:
     inc     r8
-    jmp     .row_loop
+    jmp     .dic_row_loop
 
-.caught:
+.dic_caught:
     mov     al, 1
     ret
-.safe:
+.dic_safe:
     xor     eax, eax
     ret
 
@@ -469,53 +469,53 @@ robots_phase:
     movzx   r14, byte [player_y]
 
     xor     r12, r12
-.calc_loop:
+.rp_calc_loop:
     cmp     r12d, [num_robots]
-    jge     .calc_done
+    jge     .rp_calc_done
     cmp     byte [robot_alive+r12], 0
-    je      .calc_next
+    je      .rp_calc_next
 
     movsx   rax, byte [robot_x+r12]
     movsx   rbx, byte [robot_y+r12]
 
     xor     rcx, rcx
     cmp     r13, rax
-    je      .dxdone
-    jg      .dxpos
+    je      .rp_dxdone
+    jg      .rp_dxpos
     mov     rcx, -1
-    jmp     .dxdone
-.dxpos:
+    jmp     .rp_dxdone
+.rp_dxpos:
     mov     rcx, 1
-.dxdone:
+.rp_dxdone:
     add     rax, rcx
 
     xor     rdx, rdx
     cmp     r14, rbx
-    je      .dydone
-    jg      .dypos
+    je      .rp_dydone
+    jg      .rp_dypos
     mov     rdx, -1
-    jmp     .dydone
-.dypos:
+    jmp     .rp_dydone
+.rp_dypos:
     mov     rdx, 1
-.dydone:
+.rp_dydone:
     add     rbx, rdx
 
     cmp     rax, 0
-    jge     .cx0
+    jge     .rp_cx0
     xor     rax, rax
-.cx0:
+.rp_cx0:
     cmp     rax, WIDTH-1
-    jle     .cx1
+    jle     .rp_cx1
     mov     rax, WIDTH-1
-.cx1:
+.rp_cx1:
     cmp     rbx, 0
-    jge     .cy0
+    jge     .rp_cy0
     xor     rbx, rbx
-.cy0:
+.rp_cy0:
     cmp     rbx, HEIGHT-1
-    jle     .cy1
+    jle     .rp_cy1
     mov     rbx, HEIGHT-1
-.cy1:
+.rp_cy1:
 
     mov     [cand_x+r12], al
     mov     [cand_y+r12], bl
@@ -526,10 +526,10 @@ robots_phase:
     mov     [touched_idx+r12*4], r15d
     inc     byte [cand+r15]
 
-.calc_next:
+.rp_calc_next:
     inc     r12
-    jmp     .calc_loop
-.calc_done:
+    jmp     .rp_calc_loop
+.rp_calc_done:
 
     push    rdi
     push    rcx
@@ -544,65 +544,65 @@ robots_phase:
     pop     rdi
 
     xor     r12, r12
-.judge_loop:
+.rp_judge_loop:
     cmp     r12d, [num_robots]
-    jge     .judge_done
+    jge     .rp_judge_done
     cmp     byte [robot_alive+r12], 0
-    je      .judge_next
+    je      .rp_judge_next
 
     movzx   rax, byte [cand_x+r12]
     movzx   rbx, byte [cand_y+r12]
 
     cmp     rax, r13
-    jne     .not_caught
+    jne     .rp_not_caught
     cmp     rbx, r14
-    jne     .not_caught
+    jne     .rp_not_caught
     mov     byte [caught_flag], 1
-    jmp     .judge_done_break
+    jmp     .rp_judge_done_break
 
-.not_caught:
+.rp_not_caught:
     mov     r15, rbx
     imul    r15, r15, WIDTH
     add     r15, rax
     movzx   ecx, byte [cand+r15]
     cmp     ecx, 2
-    jae     .becomes_scrap
+    jae     .rp_becomes_scrap
     movzx   ecx, byte [grid+r15]
     cmp     ecx, CELL_SCRAP
-    je      .becomes_scrap
-    jmp     .judge_next
+    je      .rp_becomes_scrap
+    jmp     .rp_judge_next
 
-.becomes_scrap:
+.rp_becomes_scrap:
     mov     byte [dead_this_turn+r12], 1
 
-.judge_next:
+.rp_judge_next:
     inc     r12
-    jmp     .judge_loop
-.judge_done_break:
-.judge_done:
+    jmp     .rp_judge_loop
+.rp_judge_done_break:
+.rp_judge_done:
 
     xor     r12, r12
-.cleanup_loop:
+.rp_cleanup_loop:
     cmp     r12d, [num_robots]
-    jge     .cleanup_done
+    jge     .rp_cleanup_done
     cmp     byte [robot_alive+r12], 0
-    je      .cleanup_next
+    je      .rp_cleanup_next
     mov     eax, [touched_idx+r12*4]
     mov     byte [cand+rax], 0
-.cleanup_next:
+.rp_cleanup_next:
     inc     r12
-    jmp     .cleanup_loop
-.cleanup_done:
+    jmp     .rp_cleanup_loop
+.rp_cleanup_done:
 
     cmp     byte [caught_flag], 1
-    je      .phase_end
+    je      .rp_phase_end
 
     xor     r12, r12
-.clearold_loop:
+.rp_clearold_loop:
     cmp     r12d, [num_robots]
-    jge     .clearold_done
+    jge     .rp_clearold_done
     cmp     byte [robot_alive+r12], 0
-    je      .clearold_next
+    je      .rp_clearold_next
 
     movzx   rax, byte [robot_x+r12]
     movzx   rbx, byte [robot_y+r12]
@@ -611,17 +611,17 @@ robots_phase:
     add     r15, rax
     mov     byte [grid+r15], CELL_EMPTY
 
-.clearold_next:
+.rp_clearold_next:
     inc     r12
-    jmp     .clearold_loop
-.clearold_done:
+    jmp     .rp_clearold_loop
+.rp_clearold_done:
 
     xor     r12, r12
-.apply_loop:
+.rp_apply_loop:
     cmp     r12d, [num_robots]
-    jge     .apply_done
+    jge     .rp_apply_done
     cmp     byte [robot_alive+r12], 0
-    je      .apply_next
+    je      .rp_apply_next
 
     movzx   rax, byte [cand_x+r12]
     movzx   rbx, byte [cand_y+r12]
@@ -630,25 +630,25 @@ robots_phase:
     add     r15, rax
 
     cmp     byte [dead_this_turn+r12], 1
-    je      .this_dead
+    je      .rp_this_dead
 
     mov     byte [grid+r15], CELL_ROBOT
     mov     [robot_x+r12], al
     mov     [robot_y+r12], bl
-    jmp     .apply_next
+    jmp     .rp_apply_next
 
-.this_dead:
+.rp_this_dead:
     mov     byte [grid+r15], CELL_SCRAP
     mov     byte [robot_alive+r12], 0
     dec     dword [robot_count]
     inc     dword [score]
 
-.apply_next:
+.rp_apply_next:
     inc     r12
-    jmp     .apply_loop
-.apply_done:
+    jmp     .rp_apply_loop
+.rp_apply_done:
 
-.phase_end:
+.rp_phase_end:
     pop     r15
     pop     r14
     pop     r13
@@ -683,17 +683,17 @@ draw_field:
     inc     rdi
 
     xor     r12, r12
-.row_loop:
+.df_row_loop:
     cmp     r12, HEIGHT
-    jge     .row_done
+    jge     .df_row_done
 
     mov     byte [rdi], '|'
     inc     rdi
 
     xor     r13, r13
-.col_loop:
+.df_col_loop:
     cmp     r13, WIDTH
-    jge     .col_done
+    jge     .df_col_done
 
     mov     rax, r12
     imul    rax, rax, WIDTH
@@ -701,26 +701,26 @@ draw_field:
     movzx   eax, byte [grid+rax]
 
     cmp     al, CELL_EMPTY
-    je      .c_empty
+    je      .df_c_empty
     cmp     al, CELL_ROBOT
-    je      .c_robot
+    je      .df_c_robot
     cmp     al, CELL_SCRAP
-    je      .c_scrap
+    je      .df_c_scrap
     mov     byte [rdi], '@'
-    jmp     .c_next
-.c_empty:
+    jmp     .df_c_next
+.df_c_empty:
     mov     byte [rdi], ' '
-    jmp     .c_next
-.c_robot:
+    jmp     .df_c_next
+.df_c_robot:
     mov     byte [rdi], '+'
-    jmp     .c_next
-.c_scrap:
+    jmp     .df_c_next
+.df_c_scrap:
     mov     byte [rdi], '*'
-.c_next:
+.df_c_next:
     inc     rdi
     inc     r13
-    jmp     .col_loop
-.col_done:
+    jmp     .df_col_loop
+.df_col_done:
 
     mov     byte [rdi], '|'
     inc     rdi
@@ -728,8 +728,8 @@ draw_field:
     inc     rdi
 
     inc     r12
-    jmp     .row_loop
-.row_done:
+    jmp     .df_row_loop
+.df_row_done:
 
     mov     byte [rdi], '+'
     inc     rdi
@@ -748,20 +748,20 @@ draw_field:
     mov     rdx, rax
     call    do_write
 
-    mov     rsi, pfx_prompt
-    mov     rdx, pfx_prompt_len
+    mov     rsi, prompt1
+    mov     rdx, prompt1_len
     call    do_write
     mov     eax, [level]
     call    print_uint
 
-    mov     rsi, mid_prompt
-    mov     rdx, mid_prompt_len
+    mov     rsi, prompt2
+    mov     rdx, prompt2_len
     call    do_write
     mov     eax, [score]
     call    print_uint
 
-    mov     rsi, sfx_prompt
-    mov     rdx, sfx_prompt_len
+    mov     rsi, prompt3
+    mov     rdx, prompt3_len
     call    do_write
 
     pop     r13
@@ -782,7 +782,7 @@ read_command:
     push    rdi
     push    r12
 
-.again:
+.rc_again:
     ; The System V ABI requires 16-byte stack alignment before a call.
     sub     rsp, 8
     call    getChar
@@ -791,20 +791,20 @@ read_command:
     mov     r12b, al
     mov     al, r12b
     cmp     al, '0'
-    jl      .badinput
+    jl      .rc_badinput
     cmp     al, '9'
-    jg      .badinput
+    jg      .rc_badinput
 
     sub     al, '0'
-    jmp     .ret
+    jmp     .rc_ret
 
-.badinput:
+.rc_badinput:
     mov     rsi, msg_badinput
     mov     rdx, msg_badinput_len
     call    do_write
-    jmp     .again
+    jmp     .rc_again
 
-.ret:
+.rc_ret:
     pop     r12
     pop     rdi
     pop     rsi
@@ -844,26 +844,26 @@ print_uint:
     mov     ecx, 0
 
     test    eax, eax
-    jnz     .conv
+    jnz     .pu_conv
     dec     rdi
     mov     byte [rdi], '0'
     inc     ecx
-    jmp     .print
+    jmp     .pu_print
 
-.conv:
-.conv_loop:
+.pu_conv:
+.pu_conv_loop:
     test    eax, eax
-    jz      .conv_done
+    jz      .pu_conv_done
     xor     rdx, rdx
     div     ebx
     add     dl, '0'
     dec     rdi
     mov     [rdi], dl
     inc     ecx
-    jmp     .conv_loop
-.conv_done:
+    jmp     .pu_conv_loop
+.pu_conv_done:
 
-.print:
+.pu_print:
     mov     rsi, rdi
     mov     edx, ecx
     call    do_write
