@@ -1,9 +1,7 @@
-/* 課題                                     */
-/* (1) キーワードとして else を追加しなさい */
-/*     ※test_scanner.c も修正すること      */
-/* (2) scan_const_number を完成させなさい	*/
-/* (3) コメントに対応しなさい(/ * * /)      */
-/*     ※変数line(行番号)に注意             */
+/* 演習1 模範解答                           */
+/* (1) キーワードとして else を追加         */
+/* (2) scan_const_number を完成             */
+/* (3) コメントに対応(/ * * /)              */
 
 #include    <stdio.h>
 #include    <ctype.h>
@@ -179,7 +177,23 @@ skip_blank(void)
 static void
 skip_c_style_comment(void)
 {
-
+    /* この関数が呼ばれた時点で nextch は "/*" の直後の文字 */
+    while (nextch != EOF){
+        if (nextch == '\n'){
+            /* コメント中の改行も行番号としてカウントする */
+            line++;
+            nextch = fgetc(stream);
+        }else if (nextch == '*'){
+            nextch = fgetc(stream);
+            if (nextch == '/'){
+                /* コメント終了記号を見つけた */
+                nextch = fgetc(stream);
+                return;
+            }
+        }else{
+            nextch = fgetc(stream);
+        }
+    }
 }
 
 static void
@@ -208,6 +222,8 @@ scan_identifier(void)
     id[i] = '\0';
     if (strcmp(id,"if") == 0){
         sym.sym = SYM_IF;
+    }else if (strcmp(id,"else") == 0){
+        sym.sym = SYM_ELSE;
     }else if (strcmp(id,"while") == 0){
         sym.sym = SYM_WHILE;
     }else if (strcmp(id,"do") == 0){
@@ -234,7 +250,9 @@ scan_const_number(void)
 
     n = 0;
     while (isdigit(nextch)){
-		/* "123" → 123 変換して n に格納 */
+        /* "123" → 123 変換して n に格納 */
+        n = n * 10 + (nextch - '0');
+        nextch = fgetc(stream);
     }
     sym.sym = SYM_CONSTANT_INT;
     sym.integer = n;

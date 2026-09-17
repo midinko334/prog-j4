@@ -3,6 +3,7 @@
 // NeoPixelの接続ピン番号
 #define PIN 6
 #define SWI 12
+#define MTP 3
 int antichatter;
 
 //色制御変数
@@ -24,11 +25,18 @@ void setup() {
   pinMode(SWI, INPUT_PULLUP);
   // NeoPixelを初期化
   pixels.begin();
-  // すべてのLEDを消灯
-  pixels.show();
 }
 
 void loop() {
+  // すべてのLEDを消灯
+  for(int i=0;i<NUMPIXELS;i++) pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+  pixels.show();
+  while('v'){
+    if(digitalRead(SWI) == HIGH) antichatter+=1;
+    else antichatter=0;
+    if(antichatter>8) break;
+  }
+
   while('v'){
     if(digitalRead(SWI) == LOW) antichatter+=1;
     else antichatter=0;
@@ -36,22 +44,16 @@ void loop() {
   }
   // 根本から順番にLEDを点灯させるループ
   for(int i=NUMPIXELS + 30-1; i >= 0; i--) {
-    // LEDの色を設定 (R, G, B)
-    if(i>=30) pixels.setPixelColor(i-30, pixels.Color(50, 50, 50));
+    if(i>=30) pixels.setPixelColor(i-30, pixels.Color(50*MTP, 50*MTP, 50*MTP));
     if(i<NUMPIXELS+30-4&&i>=30-4) pixels.setPixelColor(i-30+4, pixels.Color(0, 0, 0));
-    if(i<NUMPIXELS)pixels.setPixelColor(i, pixels.Color(50, 50, 50));
-    //pixels.setPixelColor((i-1+NUMPIXELS)%NUMPIXELS, pixels.Color(0, 0, 0));
-
-    // 変更を反映させてLEDを点灯
+    if(i<NUMPIXELS)pixels.setPixelColor(i, pixels.Color(50*MTP, 50*MTP, 50*MTP));
     pixels.show();
-
-    // 次のLEDを点灯するまでの待ち時間（ミリ秒）
     delay(30);
-  }
+}
 
   for(int gb = 50; gb >= 0; gb--) {
     for(int i = 0; i < NUMPIXELS; i++) {
-      pixels.setPixelColor(i, pixels.Color(50, gb, gb));
+      pixels.setPixelColor(i, pixels.Color(50*MTP, gb*MTP, gb*MTP));
     }
     pixels.show();
     delay(30);
@@ -74,7 +76,7 @@ void loop() {
 
     for(int i=0; i < NUMPIXELS; i++) {
       // LEDの色を設定 (R, G, B)
-      pixels.setPixelColor(i, pixels.Color(r*(fabsf(1-bright)), g*(fabsf(1-bright)), b*(fabsf(1-bright))));
+      pixels.setPixelColor(i, pixels.Color(r*(fabsf(1-bright))*MTP, g*(fabsf(1-bright))*MTP, b*(fabsf(1-bright))*MTP));
     }
 
     // 変更を反映させてLEDを点灯
@@ -85,6 +87,9 @@ void loop() {
 
     // 次のLEDを点灯するまでの待ち時間（ミリ秒）
     delay(100);
+    if(digitalRead(SWI) == LOW) antichatter+=1;
+    else antichatter=0;
+    if(antichatter>8) break;
   }
 
 //  delay(1000);

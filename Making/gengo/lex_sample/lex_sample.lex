@@ -16,6 +16,7 @@ enum {
 	  LSHIFT,	/* <<		*/
 	  LSFT_ASGN,	/* <<=		*/
 	  ID,		/* 識別子	*/
+	  NUM,		/* 10進符号なし整数 */
 	  ERR
 };
 
@@ -27,11 +28,14 @@ enum {
 /* 字句の定義．正規表現による字句定義とマッチしたときのアクションのペア */
 %%
 [a-zA-Z_][a-zA-Z0-9_]* {printf("ID:%s\n",yytext); return ID; }
+[0-9]+		{ printf("NUM:%s\n",yytext); return NUM; }
+[ \t]+		;		/* 空白・タブは読み飛ばす */
 "<"		{ printf("LT\n"); return LT; }
 "<="		{ printf("LE\n"); return LE; }
 "<<"		{ printf("LSHIFT\n"); return LSHIFT; }
 "<<="		{ printf("LSFT_ASGN\n"); return LSFT_ASGN; }
 \/\/.*\n	{ printf("comment(//)\n"); }
+"/*"([^*]|\*+[^*/])*\*+"/"	{ printf("comment(/* */)\n"); }
 .		{ printf("Unknown char\n"); return ERR; }
 %%
 
